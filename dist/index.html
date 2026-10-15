@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#dceff2">
+  <meta name="description" content="積木世界中的公司工具入口：搜尋、大方塊捷徑與會跑步的小恐龍。可操作原型。">
+  <title>工具基地 · 積木世界原型</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="world" aria-hidden="true"></div>
+  <div class="sky-wash" aria-hidden="true"></div>
+  <a class="skip-link" href="#main">跳至工具入口</a>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="工具基地首頁"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><strong>工具基地</strong><span class="brand-divider"></span><span class="brand-caption">讓工作，輕快一點。</span></a>
+    <div class="header-controls">
+      <span class="prototype-tag">互動原型</span>
+      <button id="pause" class="control" aria-pressed="false"><span id="pause-icon" aria-hidden="true">Ⅱ</span><span id="pause-label">暫停動畫</span></button>
+      <button id="settings-toggle" class="control icon-control" aria-label="顯示設定" aria-expanded="false" aria-controls="settings">⚙</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="launcher" aria-labelledby="welcome">
+      <h1 id="welcome">今天，從哪個工具開始？</h1>
+      <p class="intro">常用的工具，都在這裡。</p>
+      <form class="search" role="search" autocomplete="off">
+        <label class="sr-only" for="search">搜尋工具或用途</label>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="7.2"/><path d="m16.2 16.2 4.5 4.5"/></svg>
+        <input id="search" type="search" placeholder="搜尋工具或用途" spellcheck="false" aria-controls="tool-grid">
+        <kbd aria-hidden="true">Ctrl K</kbd>
+      </form>
+      <div class="tools-meta"><span id="result-label">選一個工具，開始吧</span><span class="demo-indicator"><i></i> 範例工具</span></div>
+      <div id="tool-grid" class="tool-grid"></div>
+      <div id="empty" class="empty" hidden><span aria-hidden="true">⌕</span><h2>還沒有找到這個工具</h2><p>試試「文件」、「報表」或其他用途。</p><button id="clear-search" class="control">清除搜尋</button></div>
+    </section>
+  </main>
+
+  <aside id="settings" class="settings" aria-labelledby="settings-title" hidden>
+    <div class="settings-head"><h2 id="settings-title">讓背景剛剛好</h2><button id="settings-close" class="icon-control control" aria-label="關閉設定">×</button></div>
+    <label for="quality">畫質</label><select id="quality"><option value="balanced">均衡 · 建議</option><option value="high">精緻 · 較多細節</option><option value="low">輕量 · 省電</option></select>
+    <p>輕量模式降低解析度與地景細節。</p>
+    <label class="check-row"><input type="checkbox" id="auto-biome"> 自動輪換草原與沙漠</label>
+    <p id="render-status" role="status">正在準備積木世界…</p>
+    <details><summary>原型驗證資訊</summary><dl id="diagnostics"><dt>渲染</dt><dd>載入中</dd></dl><p>恐龍留在原地，地景沿行進方向往後循環。</p></details>
+  </aside>
+
+  <footer class="bottom-bar">
+    <div class="footer-note"><span class="small-mark" aria-hidden="true">▦</span><span>一點童心，一起開工。<small>工具內容為示範，尚未連接公司系統</small></span></div>
+    <div class="biome-switch" role="group" aria-label="背景環境"><button class="biome active" data-biome="grass" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9l5 6V5l4 10 5-8v12M2 20h20"/></svg>草原</button><button class="biome" data-biome="desert" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 19 7-11 6 11M11 19l5-8 6 8"/></svg>沙漠</button></div>
+    <button id="help" class="about-link">使用說明 <span aria-hidden="true">↗</span></button>
+  </footer>
+
+  <dialog id="tool-dialog" aria-labelledby="dialog-title">
+    <button class="dialog-close icon-control control" aria-label="關閉">×</button>
+    <span class="dialog-kicker" id="dialog-kicker">範例工具</span>
+    <h2 id="dialog-title"></h2><p id="dialog-copy"></p>
+    <div class="demo-note" id="dialog-note">這是可操作的入口原型。目前尚未設定這個工具的網址。</div>
+    <div id="demo-area"></div>
+    <button class="primary" id="dialog-done" autofocus>知道了</button>
+  </dialog>
+  <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

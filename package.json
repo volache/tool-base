@@ -1,0 +1,11 @@
+{
+  "name": "toy-brick-tool-portal-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node preview.mjs",
+    "start": "node preview.mjs",
+    "check": "node --check dist/app.js && node --check dist/world.js && node --check dist/tools.js && node --check preview.mjs"
+  }
+}
