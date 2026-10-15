@@ -58,9 +58,15 @@ $('#help').addEventListener('click',()=>{
   $('#demo-area').innerHTML='<ul><li>點選大方塊可查看範例工具說明。實際公司網址尚未設定。</li><li>按 Ctrl / ⌘ + K 快速搜尋，按 Esc 清除搜尋或關閉視窗。</li><li>下方可切換草原、沙漠；右上角可暫停背景。</li><li>設定中可切換畫質、開啟每 30 秒輪換環境，並查看即時效能。</li></ul>';
   $('#dialog-done').textContent='開始探索';openDialog($('#help'));
 });
-$('.search').addEventListener('submit',e=>{e.preventDefault();grid.querySelector('.tool-tile')?.click();});
+function searchGoogle(){
+  const query=input.value.trim();
+  if(!query){input.focus();return;}
+  window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`,'_blank','noopener,noreferrer');
+}
+$('.search').addEventListener('submit',e=>{e.preventDefault();searchGoogle();});
 input.addEventListener('input',renderTools);
 $('#clear-search').addEventListener('click',()=>{input.value='';renderTools();input.focus();});
+$('#google-search-empty').addEventListener('click',searchGoogle);
 document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(dialog.open)closeDialog();input.focus();input.select();}
   if(e.key==='Escape'&&!dialog.open){if(!$('#settings').hidden)toggleSettings(false);else if(currentQuery){input.value='';renderTools();}}

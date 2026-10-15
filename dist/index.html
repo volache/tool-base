@@ -30,11 +30,12 @@
         <label class="sr-only" for="search">搜尋工具或用途</label>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="7.2"/><path d="m16.2 16.2 4.5 4.5"/></svg>
         <input id="search" type="search" placeholder="搜尋工具或用途" spellcheck="false" aria-controls="tool-grid">
+        <button id="google-search" class="google-search" type="submit" title="以 Google 搜尋" aria-label="以 Google 搜尋">Google</button>
         <kbd aria-hidden="true">Ctrl K</kbd>
       </form>
       <div class="tools-meta"><span id="result-label">選一個工具，開始吧</span><span class="demo-indicator"><i></i> 範例工具</span></div>
       <div id="tool-grid" class="tool-grid"></div>
-      <div id="empty" class="empty" hidden><span aria-hidden="true">⌕</span><h2>還沒有找到這個工具</h2><p>試試「文件」、「報表」或其他用途。</p><button id="clear-search" class="control">清除搜尋</button></div>
+      <div id="empty" class="empty" hidden><span aria-hidden="true">⌕</span><h2>還沒有找到這個工具</h2><p>可改用 Google 尋找公開資訊，或換個關鍵字搜尋內部工具。</p><div class="empty-actions"><button id="google-search-empty" class="google-search google-search-large" type="button">用 Google 搜尋</button><button id="clear-search" class="control" type="button">清除搜尋</button></div></div>
     </section>
   </main>
 
