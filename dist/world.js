@@ -26,8 +26,8 @@ export async function createWorld(container,options={}){
   let mix=targetBiome;
   let elapsed=0;
   const palettes={
-    grass:{sky:'#cee5f1',ground:'#8aa968',brick:'#a8bd7c',stud:'#b4c487',hill:'#8ba991',hilltop:'#b3c5a0',path:'#d9cfac',rock:'#aab0a4',tree:'#527f58',trunk:'#c0a070'},
-    desert:{sky:'#e8e5d9',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f'}
+    grass:{sky:'#cee5f1',ground:'#8aa968',brick:'#a8bd7c',stud:'#b4c487',hill:'#8ba991',hilltop:'#b3c5a0',path:'#d9cfac',rock:'#aab0a4',tree:'#527f58',trunk:'#c0a070',flower:'#f0a071'},
+    desert:{sky:'#e8e5d9',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'}
   };
   const materials={};
   for(const key of Object.keys(palettes.grass)){
@@ -67,7 +67,7 @@ export async function createWorld(container,options={}){
     for(let j=0;j<9;j++)cloudBlocks.push([x+(j%3-1)*1.65*s,y+Math.floor(j/3)*.65*s,z+(random()-.5)*1.8,1.9*s,1.1*s,1.7*s]);
   }
   batch(cloudGroup,cube,whiteMat,cloudBlocks,false);
-  // A rotated, endless belt: positive local Z is towards the dinosaur's rear (screen lower-right).
+  // A rotated, endless belt. A reserved central lane keeps scenery from intersecting the dinosaur.
   const belt=new THREE.Group();belt.rotation.y=Math.PI/4;scene.add(belt);
   const chunks=[];const chunkLength=15;const chunkCount=9;
   const lowDetails=[];
@@ -84,41 +84,47 @@ export async function createWorld(container,options={}){
   }
   for(let c=0;c<chunkCount;c++){
     const group=new THREE.Group();group.position.z=(c-5)*chunkLength;belt.add(group);
-    const plates=[],studs=[],pebbles=[],sprouts=[];
+    const plates=[],pathPlates=[],studs=[],pebbles=[],sprouts=[],flowers=[];
     for(let j=0;j<90;j++){
       const x=(random()-.5)*115;const z=(random()-.5)*chunkLength;const sy=.16+random()*.22;
-      plates.push([x,-.28+sy/2,z,.9+random()*.9,sy,.9+random()*.9]);
-      if(j%2===0)pebbles.push([x+.3,.05,z,.35+random()*.5,.22+random()*.4,.35+random()*.5]);
-      if(j%3===0)sprouts.push([x-.4,.13,z,.13,.6,.14]);
+      const target=Math.abs(x)<7.2?pathPlates:plates;
+      target.push([x,-.28+sy/2,z,.9+random()*.9,sy,Math.abs(x)<7.2?1.45:1.05+random()*.75]);
+      if(Math.abs(x)>7.2&&j%2===0)pebbles.push([x+.3,.05,z,.35+random()*.5,.22+random()*.4,.35+random()*.5]);
+      if(Math.abs(x)>7.2&&j%3===0)sprouts.push([x-.4,.13,z,.13,.6,.14]);
+      if(Math.abs(x)>7.2&&j%5===0)flowers.push([x+.18,.25,z-.12,.18,.25,.18]);
     }
-    for(let j=0;j<170;j++){const x=(random()-.5)*110;const z=(random()-.5)*chunkLength;studs.push([x,-.22,z,.85,1,.85]);}
+    for(let j=0;j<170;j++){const x=(random()-.5)*110;const z=(random()-.5)*chunkLength;if(Math.abs(x)>7.2)studs.push([x,-.22,z,.85,1,.85]);}
     batch(group,cube,materials.brick,plates,false);
+    batch(group,cube,materials.path,pathPlates,false);
     lowDetails.push(batch(group,cylinder,materials.stud,studs,false));
     batch(group,cube,materials.rock,pebbles,false);
     const plants=batch(group,cube,materials.tree,sprouts,false);
+    const flowerBed=batch(group,cube,materials.flower,flowers,false);
     const trees=new THREE.Group(),cacti=new THREE.Group();group.add(trees,cacti);
     for(let j=0;j<3;j++){
       const x=(j%2?-1:1)*(13+random()*30);const z=(random()-.5)*chunkLength;
       addTree(trees,x,z,.65+random()*.4);addCactus(cacti,x+.7,z,.65+random()*.5);
     }
-    chunks.push({group,trees,cacti,plants});
+    chunks.push({group,trees,cacti,plants,flowerBed});
   }
-  // A simple brick-built T-Rex. Model faces local -Z, then turns 45° to the upper-left.
+  // A brick-built T-Rex that faces back toward the viewer at a clear three-quarter (45°) angle.
   const dinoAnchor=new THREE.Group();scene.add(dinoAnchor);
-  const dino=new THREE.Group();dino.rotation.y=Math.PI/4;dinoAnchor.add(dino);
+  const dino=new THREE.Group();dino.rotation.y=THREE.MathUtils.degToRad(135);dinoAnchor.add(dino);
   const torso=new THREE.Group();dino.add(torso);
   box(torso,0,1.6,.15,.95,1.35,1.17,dark);
   box(torso,0,2.15,-.25,.82,1.15,.77,darkSide);
   box(torso,0,2.92,-.76,1.18,.92,1.38,dark);
   box(torso,0,2.68,-1.43,1.14,.37,.57,dark);
   box(torso,0,2.35,-1.12,.93,.20,1.06,darkSide);
-  // Square eyes on both sides so the silhouette remains readable in three-quarter view.
+  // A front eye pair and contrasting snout make the direction legible from the portal camera.
   for(const side of [-1,1]){
     box(torso,side*.597,3.07,-.7,.025,.29,.3,eyeWhite,false);
     box(torso,side*.615,3.08,-.77,.025,.14,.14,eyeBlack,false);
     box(torso,side*.56,2.62,-1.4,.025,.075,.19,eyeBlack,false);
   }
   for(let i=0;i<3;i++)box(torso,0,2.48,-1.37+i*.19,.95,.07,.085,eyeWhite,false);
+  box(torso,0,3.08,-1.47,.44,.32,.026,eyeWhite,false);
+  box(torso,.08,3.08,-1.5,.16,.16,.027,eyeBlack,false);
   const tail=new THREE.Group();tail.position.set(0,1.45,.5);torso.add(tail);
   box(tail,0,.02,.5,.77,.64,1.15,dark);box(tail,0,.20,1.33,.55,.46,.72,darkSide);box(tail,0,.43,1.83,.36,.36,.5,dark);box(tail,0,.65,2.13,.28,.38,.32,dark);
   const arms=[];
@@ -167,7 +173,7 @@ export async function createWorld(container,options={}){
   function updatePalette(){
     for(const [key,mat] of Object.entries(materials)){colorA.set(palettes.grass[key]);colorB.set(palettes.desert[key]);mat.color.copy(colorA).lerp(colorB,mix);}
     colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);
-    chunks.forEach(({trees,cacti,plants})=>{trees.visible=mix<.55;cacti.visible=mix>=.55;plants.visible=mix<.55;});
+    chunks.forEach(({trees,cacti,plants,flowerBed})=>{trees.visible=mix<.55;cacti.visible=mix>=.55;plants.visible=mix<.55;flowerBed.visible=mix<.55;});
   }
   function animate(delta){
     elapsed+=delta;
