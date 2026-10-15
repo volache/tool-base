@@ -22,3 +22,6 @@ dialog{position:fixed;inset:0;margin:auto;height:fit-content;max-height:85svh;ov
 button:disabled,select:disabled{opacity:.55;cursor:not-allowed;color:var(--color-disabled)}
 @media(min-width:901px){main{padding-bottom:58px;min-height:calc(100svh - 90px)}}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:160ms}
+:root[data-theme="night"]{--color-ink:#e3ecf5;--color-muted:#b0c1d1;--color-paper:#26364a;--color-surface:#203046f5;--color-line:#9eb8d333;--color-control:#25384be8;--color-hover:#33495e;--color-focus:#9dceff;--color-accent:#a8d8bb;--color-accent-ink:#152b22;--color-shade:#050b2080;--color-glow:#9ab6d00c;--color-sky:#101c35;--color-disabled:#91a4b9;--color-dim:#050b20a8}
+:root[data-theme="night"] .sky-wash{background:radial-gradient(ellipse 42% 43% at 46% 34%,#1a31542a,transparent 100%)}
+@media(max-width:390px){.topbar{padding-inline:12px}.brand strong{font-size:18px}.header-controls{gap:5px}.header-controls .icon-control{width:38px;height:40px;min-height:40px}#pause{padding-inline:9px}.brand{gap:6px}.brand-mark{gap:2px}}

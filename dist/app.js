@@ -5,7 +5,9 @@ const grid = $('#tool-grid');
 const input = $('#search');
 const dialog = $('#tool-dialog');
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-const state = { paused: reduced.matches, biome: 'grass', quality: 'balanced', auto: false };
+let savedNight=false;
+try{savedNight=localStorage.getItem('tool-portal-night')==='true';}catch{}
+const state = { paused: reduced.matches, biome: 'grass', quality: 'balanced', auto: false, night:savedNight };
 let world;
 let iconURLs = {};
 let currentQuery = '';
@@ -78,6 +80,20 @@ function updatePause(){
   world?.setPaused(state.paused);
 }
 $('#pause').addEventListener('click',()=>{state.paused=!state.paused;updatePause();});
+function updateNight(){
+  document.documentElement.dataset.theme=state.night?'night':'day';
+  $('#night').setAttribute('aria-pressed',String(state.night));
+  $('#night').setAttribute('aria-label',state.night?'切換白天模式':'切換黑夜模式');
+  $('#night').title=state.night?'切換白天模式':'切換黑夜模式';
+  $('#night').textContent=state.night?'☀':'☾';
+  document.querySelector('meta[name="theme-color"]').content=state.night?'#101c35':'#dceff2';
+  world?.setNight(state.night);
+}
+$('#night').addEventListener('click',()=>{
+  state.night=!state.night;updateNight();
+  try{localStorage.setItem('tool-portal-night',String(state.night));}catch{}
+  $('#announcer').textContent=state.night?'已切換黑夜模式':'已切換白天模式';
+});
 reduced.addEventListener('change',e=>{if(e.matches){state.paused=true;updatePause();}});
 function setBiome(b){
   state.biome=b;
@@ -97,10 +113,10 @@ function report(stats){
   $('#diagnostics').replaceChildren(...Object.entries({'渲染':'Three.js / WebGL2','畫面更新':`${stats.fps} FPS`,'繪製呼叫':stats.calls,'三角形':stats.triangles.toLocaleString(),'動態':state.paused?'已暫停':document.hidden?'分頁暫停':'播放中'}).flatMap(([k,v])=>[Object.assign(document.createElement('dt'),{textContent:k}),Object.assign(document.createElement('dd'),{textContent:String(v)})]));
   if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=30){setBiome(state.biome==='grass'?'desert':'grass');lastAuto=0;}}
 }
-renderTools();updatePause();
+renderTools();updatePause();updateNight();
 try{
   const {createWorld}=await import('./world.js');
-  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,onStats:report});
+  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,onStats:report});
   iconURLs=world.icons;
   renderTools();
   $('#render-status').textContent=reduced.matches?'已依系統偏好暫停背景，可手動播放。':'3D 世界已就緒 · 恐龍準備出發';
