@@ -235,6 +235,15 @@ export async function createWorld(container,options={}){
     }
     chunks.push({group,trees,cacti,palms,plants,flowerBed});
   }
+  // Shadow casters must use the same world-space coastline as visible terrain.
+  // Otherwise culled shoreline props leave floating silhouettes over the water.
+  const coastDepth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
+  coastDepth.onBeforeCompile=shader=>{
+    coastShader(shader);
+    shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>',
+      '#include <clipping_planes_fragment>\nif(coastEnabled>.5 && coastDistance()>0.0) discard;');
+  };
+  scene.traverse(object=>{if(object.isMesh&&Object.values(materials).includes(object.material))object.customDepthMaterial=coastDepth;});
   // Original 45 degree heading, toward the upper-left of the scene.
   const dinoAnchor=new THREE.Group();scene.add(dinoAnchor);
   const dino=new THREE.Group();dino.rotation.y=Math.PI/4;dinoAnchor.add(dino);
