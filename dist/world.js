@@ -1,4 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
+import {createVolumetricFog} from './volumetric-fog.js';
+import {fromLoop} from './route-curves.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
 // Instancing keeps the many brick studs and terrain pieces in a small number of draw calls.
@@ -17,6 +19,7 @@ export async function createWorld(container,options={}){
   camera.position.set(0,9,28);camera.lookAt(0,5,-12);
   scene.background=new THREE.Color('#d4e8f0');
   scene.fog=new THREE.Fog('#d4e8f0',38,115);
+  const volumeFog=createVolumetricFog(THREE,renderer,camera);
   const hemi=new THREE.HemisphereLight('#f2faff','#b5ad8c',2.2);scene.add(hemi);
   const sun=new THREE.DirectionalLight('#fff5dc',2.8);sun.position.set(-18,34,20);sun.castShadow=true;
   sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-38;sun.shadow.camera.right=38;sun.shadow.camera.top=32;sun.shadow.camera.bottom=-28;sun.shadow.camera.far=100;sun.shadow.normalBias=.08;sun.shadow.bias=-.0002;sun.shadow.radius=3;scene.add(sun);
@@ -111,8 +114,7 @@ export async function createWorld(container,options={}){
     const entry=1-THREE.MathUtils.smootherstep(t,0,.24),exit=THREE.MathUtils.smootherstep(t,.76,1);
     const angle=t*Math.PI*4+phase;
     if(customUfoCurve){
-      customUfoCurve.getPointAt((t*2)%1,target);
-      target.x+=70*entry-100*exit;target.y+=5*entry+6*exit;target.z-=8*exit;
+      customUfoCurve.getPointAt(t,target);
       return target;
     }
     // Analytic motion is C2-continuous even at the entry/exit blend boundaries.
@@ -129,6 +131,8 @@ export async function createWorld(container,options={}){
     const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
     if(t>=1){ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+(routePreview?1.2:45+random()*45);return;}
     ufo.visible=true;
+    const opacity=THREE.MathUtils.smoothstep(t,0,.035)*(1-THREE.MathUtils.smoothstep(t,.965,1));
+    for(const material of [saucerMat,domeMat,ufoLights]){material.transparent=true;material.opacity=opacity;}
     sampleUfoFlight(ufoFlight,t,flightPosition);
     sampleUfoFlight(ufoFlight,Math.min(1,t+.0001),flightTangent).sub(flightPosition).normalize();
     ufo.position.copy(moon.position).add(flightPosition);
@@ -143,16 +147,20 @@ export async function createWorld(container,options={}){
       const a=i/8*Math.PI*2,p=new THREE.Vector3((variant===2?7:5.5)*Math.cos(a),(variant===1?2.3*Math.sin(a*2)+.9*Math.sin(a):2.8*Math.sin(a)),0).add(moon.position).project(camera);
       points.push([(p.x-center.x)/2,(center.y-p.y)/2]);
     }
-    return {points,duration:16};
+    return {nodes:fromLoop(points,[.98-(center.x+1)/2,.1-(1-center.y)/2],[.025-(center.x+1)/2,.25-(1-center.y)/2]),duration:16};
   }
   function buildUfoCurve(config){
-    if(config?.points?.length>=3){
-      const center=moon.position.clone().project(camera),plane=new THREE.Plane(new THREE.Vector3(0,0,1),-moon.position.z),ray=new THREE.Raycaster();
-      const points=config.points.map(([x,y])=>{
-        ray.setFromCamera(new THREE.Vector2(center.x+x*2,center.y-y*2),camera);
-        const point=new THREE.Vector3();ray.ray.intersectPlane(plane,point);return point.sub(moon.position);
-      });
-      const curve=new THREE.CatmullRomCurve3(points,true,'centripetal');curve.arcLengthDivisions=800;curve.updateArcLengths();return curve;
+    if(config?.nodes?.length>=3){
+      const center=moon.position.clone().project(camera);
+      const convert=([x,y])=>new THREE.Vector3(center.x+x*2,center.y-y*2,center.z).unproject(camera).sub(moon.position);
+      const curve=new THREE.CurvePath();
+      for(let i=0;i<config.nodes.length-1;i++){
+        const a=config.nodes[i],b=config.nodes[i+1];
+        const p1=[a.p[0]+a.out[0],a.p[1]+a.out[1]],p2=[b.p[0]+b.in[0],b.p[1]+b.in[1]];
+        const segment=new THREE.CubicBezierCurve3(convert(a.p),convert(p1),convert(p2),convert(b.p));
+        segment.arcLengthDivisions=100;curve.add(segment);
+      }
+      curve.arcLengthDivisions=800;curve.updateArcLengths();return curve;
     }
   }
   function setUfoRoute(config){
@@ -439,6 +447,7 @@ export async function createWorld(container,options={}){
     camera.updateMatrixWorld();
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,quality==='high'?1.8:quality==='low'?1:1.35));
     renderer.setSize(w,h,false);
+    volumeFog.resize();
     layoutCoast(w,h);
     const mobile=w<650;
     raycaster.setFromCamera(new THREE.Vector2(mobile?.58:.68,mobile?-.82:-.67),camera);
@@ -458,60 +467,9 @@ export async function createWorld(container,options={}){
     renderer.shadowMap.needsUpdate=true;resize();
   }
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
-  // A billowing bank travels toward and then behind the running dinosaur.
-  const mistUniforms={tint:{value:new THREE.Color('#dbe8ed')},opacity:{value:0},age:{value:0}};
-  const groundMist={mistActive:{value:0},mistSeal:{value:0},mistFront:{value:-100},mistBack:{value:-300},mistAnchor:{value:new THREE.Vector2()},mistTint:{value:mistUniforms.tint.value}};
-  // All ground, water and dinosaur fragments share the same moving fog volume.
-  // The trailing boundary reveals the far side first, instead of fading the whole scene.
-  const mistMaterials=new Set();
-  scene.traverse(object=>{
-    if(!object.isMesh)return;
-    for(const material of Array.isArray(object.material)?object.material:[object.material]){
-      if(mistMaterials.has(material)||material.fog===false)continue;
-      mistMaterials.add(material);
-      const previousCompile=material.onBeforeCompile.bind(material),previousKey=material.customProgramCacheKey.bind(material);
-      material.onBeforeCompile=shader=>{
-        previousCompile(shader);Object.assign(shader.uniforms,groundMist);
-        shader.vertexShader='varying vec3 vMistWorld;\n'+shader.vertexShader;
-        shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`#include <project_vertex>
-          vec4 mistPosition=vec4(transformed,1.);
-          #ifdef USE_INSTANCING
-            mistPosition=instanceMatrix*mistPosition;
-          #endif
-          vMistWorld=(modelMatrix*mistPosition).xyz;`);
-        shader.fragmentShader='varying vec3 vMistWorld;uniform float mistActive,mistSeal,mistFront,mistBack;uniform vec2 mistAnchor;uniform vec3 mistTint;\n'+shader.fragmentShader;
-        shader.fragmentShader=shader.fragmentShader.replace('#include <fog_fragment>',`#include <fog_fragment>
-          float mistAxis=dot(vMistWorld.xz-mistAnchor,vec2(.70710678));
-          float mistEdge=sin(vMistWorld.x*.22+vMistWorld.z*.13)*1.5;
-          float mistDensity=smoothstep(mistBack-7.+mistEdge,mistBack+7.+mistEdge,mistAxis)
-            *(1.-smoothstep(mistFront-7.+mistEdge,mistFront+7.+mistEdge,mistAxis));
-          gl_FragColor.rgb=mix(gl_FragColor.rgb,mistTint,mistActive*max(mistDensity,mistSeal));`);
-      };
-      material.customProgramCacheKey=()=>previousKey()+'-ground-mist-v2';material.needsUpdate=true;
-    }
-  });
-  const mistMaterial=new THREE.MeshStandardMaterial({color:'#e5eeed',roughness:.96,transparent:true,opacity:.16,depthWrite:false,fog:false});
-  mistMaterial.onBeforeCompile=shader=>{
-    shader.vertexShader='varying float mistViewDistance;\n'+shader.vertexShader;
-    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nmistViewDistance=length(mvPosition.xyz);');
-    shader.fragmentShader='varying float mistViewDistance;\n'+shader.fragmentShader;
-    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','diffuseColor.a*=smoothstep(5.,16.,mistViewDistance);\n#include <opaque_fragment>');
-  };
-  const mistBank=new THREE.Group();mistBank.rotation.y=Math.PI/4;mistBank.visible=false;scene.add(mistBank);
-  const fogBlocks=[];
-  const fogRandom=n=>{const f=Math.sin(n*127.1+311.7)*43758.5453;return f-Math.floor(f);};
-  // Low, sparse voxel puffs rather than a wall of stacked bricks.
-  // The same finite bank keeps travelling forward through the scene change.
-  for(let row=0;row<5;row++)for(let column=0;column<16;column++){
-    const seed=row*16+column,x=(column-7.5)*5.4+(fogRandom(seed)-.5)*3,z=-row*29-fogRandom(seed+99)*4;
-    for(let puff=0;puff<7;puff++){
-      const angle=puff/7*Math.PI*2,radius=puff===0?0:1.1;
-      const px=x+Math.cos(angle)*radius,pz=z+Math.sin(angle)*radius;
-      const height=.38+fogRandom(seed+puff*37)*.38;
-      fogBlocks.push([px,.4+(puff%3)*.48,pz,1.5+fogRandom(seed+puff*83),height,1.8+fogRandom(seed+puff*11)*1.4]);
-    }
-  }
-  batch(mistBank,bevelBrick,mistMaterial,fogBlocks,false);
+  // One finite volume moves continuously through the 45-degree running axis.
+  const mistUniforms={tint:{value:new THREE.Color()}};
+  const groundMist={mistSeal:{value:0},mistFront:{value:-65},mistBack:{value:-185},mistAnchor:{value:new THREE.Vector2()}};
   let scenerySnapshot,sceneTransition,pendingBiome;
   function beginSceneryTransition(){
     if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
@@ -539,11 +497,8 @@ export async function createWorld(container,options={}){
     sceneTransition={to:b,phase:'out',time:0,age:0,skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
     const mistTint=sceneTransition.skyFrom.clone().lerp(sceneTransition.skyTo,.5);
     mistTint.lerp(new THREE.Color(night?'#71879d':'#f5f8f5'),night?.14:.2);
-    // The fog fragment runs after output colour conversion, just like Three's fog.
-    mistUniforms.tint.value.copy(mistTint).convertLinearToSRGB();
-    mistMaterial.color.set(night?'#a2b4ca':'#e5eeed');
-    mistBank.visible=true;
-    groundMist.mistActive.value=1;
+    // Scattering stays in linear colour space until the final overlay conversion.
+    mistUniforms.tint.value.copy(mistTint);
     container.dataset.transition='entering-mist';
     requestTick();
   }
@@ -574,9 +529,6 @@ export async function createWorld(container,options={}){
     groundMist.mistFront.value=travel;
     groundMist.mistBack.value=travel-120;
     groundMist.mistSeal.value=THREE.MathUtils.smoothstep(progress,.32,.46)*(1-THREE.MathUtils.smoothstep(progress,.54,.68));
-    mistBank.position.set(anchorPoint.x+Math.sin(Math.PI/4)*travel,0,anchorPoint.z+Math.cos(Math.PI/4)*travel);
-    mistUniforms.age.value=transition.age;
-    mistMaterial.opacity=night?.12:.16;
     scene.background.copy(transition.skyFrom).lerp(transition.skyTo,sweep);scene.fog.color.copy(scene.background);
     if(p<1)return;
     if(!incoming){
@@ -585,14 +537,14 @@ export async function createWorld(container,options={}){
       transition.phase='in';transition.time=0;
       container.dataset.transition='leaving-mist';
     }else{
-      sceneTransition=undefined;mistBank.visible=false;mistUniforms.opacity.value=0;groundMist.mistActive.value=0;updatePalette();delete container.dataset.transition;
+      sceneTransition=undefined;updatePalette();delete container.dataset.transition;
       const next=pendingBiome;pendingBiome=undefined;if(next&&next!==biome)setBiome(next);
     }
   }
   function finishSceneTransition(){
     if(!sceneTransition)return;
     const next=pendingBiome||sceneTransition.to;
-    sceneTransition=undefined;pendingBiome=undefined;mistBank.visible=false;mistUniforms.opacity.value=0;groundMist.mistActive.value=0;
+    sceneTransition=undefined;pendingBiome=undefined;
     commitBiome(next);scene.fog.near=38;scene.fog.far=115;delete container.dataset.transition;
   }
   function alignCoastMotion(){
@@ -723,7 +675,7 @@ export async function createWorld(container,options={}){
     }
   }
   let last=performance.now(),lastReport=last,frames=0,raf=0;
-  function render(){renderer.render(scene,camera);}
+  function render(){volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000;options.onStats?.({fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval});lastReport=now;frames=0;}}
   function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
   function requestTick(){if(!raf&&(!paused||sceneTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}

@@ -1,26 +1,38 @@
-const key='tool-portal-ufo-routes-v2';
-const valid=value=>value&&Array.isArray(value.points)&&value.points.length>=3&&value.points.length<=32&&value.points.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&Math.abs(n)<=1.5))&&Number.isFinite(value.duration)&&value.duration>=8&&value.duration<=28;
+import {migrateRoute,splitSegment,cubicPoint} from './route-curves.js';
+const key='tool-portal-ufo-routes-v3';
+const vector=v=>Array.isArray(v)&&v.length===2&&v.every(n=>Number.isFinite(n)&&Math.abs(n)<=3);
+const valid=value=>value&&Array.isArray(value.nodes)&&value.nodes.length>=3&&value.nodes.length<=48&&value.nodes.every(n=>vector(n.p)&&vector(n.in)&&vector(n.out))&&Number.isFinite(value.duration)&&value.duration>=8&&value.duration<=28;
+const legacy=value=>value&&Array.isArray(value.points)&&value.points.length>=3&&value.points.length<=32&&value.points.every(vector)&&Number.isFinite(value.duration)&&value.duration>=8&&value.duration<=28;
 export function initRouteEditor(world,{begin,end}){
   const $=id=>document.getElementById(id),root=$('route-editor'),svg=$('route-overlay'),handles=$('route-handles');
-  let saved,config,routes,routeIndex=0,selectedPoint=0,active=false,dragIndex=-1,previous;
+  let saved,config,routes,routeIndex=0,selectedPoint=0,active=false,dragIndex=-1,dragKind='anchor',previous;
   const defaults=()=>['環月','迴旋','寬幅'].map((name,i)=>({name,...world.getUfoRoute(i)}));
   try{
     const data=JSON.parse(localStorage.getItem(key));
     if(data?.routes?.length>=1&&data.routes.length<=12&&data.routes.every(valid))saved=data;
-    else{const legacy=JSON.parse(localStorage.getItem('tool-portal-ufo-route-v1'));if(valid(legacy))saved={routes:[{name:'自訂航線',...legacy},...defaults().slice(1)]};}
+    else{
+      const v2=JSON.parse(localStorage.getItem('tool-portal-ufo-routes-v2')),v1=JSON.parse(localStorage.getItem('tool-portal-ufo-route-v1'));
+      const moon=world.getUfoGuide().moon;
+      if(v2?.routes?.length>=1&&v2.routes.length<=12&&v2.routes.every(legacy))saved={routes:v2.routes.map(route=>migrateRoute(route,moon))};
+      else if(legacy(v1))saved={routes:[migrateRoute({name:'自訂航線',...v1},moon),...defaults().slice(1)]};
+    }
   }catch{}
-  if(saved)world.setUfoRoutes(saved.routes);
+  world.setUfoRoutes(saved?.routes??defaults());
   const copy=value=>JSON.parse(JSON.stringify(value));
   const ns='http://www.w3.org/2000/svg';
   function ensureHandles(){
-  if(handles.children.length===config.points.length)return;
+  if(handles.children.length===config.nodes.length)return;
   handles.replaceChildren();
-  for(let i=0;i<config.points.length;i++){
+  for(let i=0;i<config.nodes.length;i++){
     const group=document.createElementNS(ns,'g'),circle=document.createElementNS(ns,'circle'),label=document.createElementNS(ns,'text');
     group.dataset.index=i;group.setAttribute('tabindex','0');group.setAttribute('role','button');group.setAttribute('aria-label',`航線控制點 ${i+1}，使用方向鍵移動`);
     circle.setAttribute('r','13');label.setAttribute('text-anchor','middle');label.setAttribute('dy','.35em');label.textContent=i+1;
     group.append(circle,label);handles.append(group);
   }
+  }
+  const controls=$('route-control-handles'),controlLine=$('route-control-lines');
+  for(const kind of ['in','out']){
+    const circle=document.createElementNS(ns,'circle');circle.dataset.handle=kind;circle.setAttribute('r','7');circle.setAttribute('tabindex','0');circle.setAttribute('role','button');controls.append(circle);
   }
   function routeTabs(){
     $('route-tabs').replaceChildren(...routes.map((route,index)=>{
@@ -34,15 +46,26 @@ export function initRouteEditor(world,{begin,end}){
     ensureHandles();
     const {width,height}=svg.getBoundingClientRect(),guide=world.getUfoGuide();
     svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
-    $('route-path').setAttribute('d',guide.path.map(([x,y],i)=>`${i?'L':'M'}${(x*width).toFixed(2)},${(y*height).toFixed(2)}`).join(' '));
+    const path=guide.path.map(([x,y],i)=>`${i?'L':'M'}${(x*width).toFixed(2)},${(y*height).toFixed(2)}`).join(' ');
+    $('route-path').setAttribute('d',path);$('route-hit').setAttribute('d',path);
     [...handles.children].forEach((g,i)=>{
-      const [x,y]=config.points[i];g.setAttribute('transform',`translate(${(guide.moon[0]+x)*width} ${(guide.moon[1]+y)*height})`);
-      g.setAttribute('aria-label',`航線控制點 ${i+1}，使用方向鍵移動`);
+      const [x,y]=config.nodes[i].p;g.setAttribute('transform',`translate(${(guide.moon[0]+x)*width} ${(guide.moon[1]+y)*height})`);
+      g.setAttribute('aria-label',`${i===0?'進場':i===config.nodes.length-1?'離場':'航線'}控制點 ${i+1}，使用方向鍵移動`);
       g.classList.toggle('selected',i===selectedPoint);g.setAttribute('aria-pressed',String(i===selectedPoint));
     });
     $('route-name').value=config.name||`航線 ${routeIndex+1}`;
-    $('point-status').textContent=`已選航點 ${selectedPoint+1} · 共 ${config.points.length} 點（3–32 點）`;
-    $('point-add').disabled=config.points.length>=32;$('point-delete').disabled=config.points.length<=3;
+    $('point-status').textContent=`已選 ${selectedPoint+1}${selectedPoint===0?'（進場）':selectedPoint===config.nodes.length-1?'（離場）':''} · 共 ${config.nodes.length} 點（3–48 點）`;
+    $('point-add').disabled=config.nodes.length>=48;$('point-delete').disabled=config.nodes.length<=3;
+    const node=config.nodes[selectedPoint],lines=[];
+    [...controls.children].forEach(circle=>{
+      const kind=circle.dataset.handle,hidden=kind==='in'?selectedPoint===0:selectedPoint===config.nodes.length-1;
+      circle.style.display=hidden?'none':'';if(hidden)return;
+      const cx=(guide.moon[0]+node.p[0])*width,cy=(guide.moon[1]+node.p[1])*height;
+      const x=cx+node[kind][0]*width,y=cy+node[kind][1]*height;
+      circle.setAttribute('cx',x);circle.setAttribute('cy',y);circle.setAttribute('aria-label',`航點 ${selectedPoint+1} ${kind==='in'?'入彎':'出彎'}把手`);
+      lines.push(`M${cx},${cy} L${x},${y}`);
+    });
+    controlLine.setAttribute('d',lines.join(' '));$('point-mode').textContent=node.smooth===false?'轉角航點':'平滑航點';$('point-mode').setAttribute('aria-pressed',String(node.smooth!==false));
     $('ufo-duration').value=config.duration;$('ufo-duration-label').textContent=`${config.duration} 秒`;
   }
   let pendingFrame=0;
@@ -59,20 +82,34 @@ export function initRouteEditor(world,{begin,end}){
     if(!active)return;active=false;dragIndex=-1;root.hidden=true;
     if(pendingFrame){cancelAnimationFrame(pendingFrame);pendingFrame=0;}
     document.querySelectorAll('header,main,footer,#settings').forEach(el=>el.inert=false);
-    world.previewUfoRoute(false);world.setUfoRoutes(saved?.routes);end(previous);$('settings-toggle').focus();
+    world.previewUfoRoute(false);world.setUfoRoutes(saved?.routes??defaults());end(previous);$('settings-toggle').focus();
   }
   function move(index,x,y){
     const guide=world.getUfoGuide(),{width,height}=svg.getBoundingClientRect();
     const next=[Math.max(.025,Math.min(.975,x))-guide.moon[0],Math.max(.07,Math.min(.85,y))-guide.moon[1]];
-    if(config.points.some((p,i)=>i!==index&&Math.hypot((p[0]-next[0])*width,(p[1]-next[1])*height)<6))return;
-    config.points[index]=next;scheduleDraft();
+    if(config.nodes.some((node,i)=>i!==index&&Math.hypot((node.p[0]-next[0])*width,(node.p[1]-next[1])*height)<4))return;
+    config.nodes[index].p=next;scheduleDraft();
+  }
+  function moveHandle(kind,x,y,independent=false){
+    const guide=world.getUfoGuide(),node=config.nodes[selectedPoint];
+    const value=[x-guide.moon[0]-node.p[0],y-guide.moon[1]-node.p[1]];
+    node[kind]=value;
+    if(independent)node.smooth=false;
+    if(node.smooth!==false){
+      const other=kind==='in'?'out':'in',length=Math.hypot(...node[other]),current=Math.hypot(...value);
+      if(current>1e-6)node[other]=value.map(n=>-n/current*length);
+    }
+    scheduleDraft();
   }
   svg.addEventListener('pointerdown',event=>{
+    const handle=event.target.closest('[data-handle]');
+    if(handle){dragKind=handle.dataset.handle;dragIndex=selectedPoint;svg.setPointerCapture(event.pointerId);handle.focus();event.preventDefault();return;}
     const point=event.target.closest('[data-index]');if(!point)return;
-    dragIndex=Number(point.dataset.index);selectedPoint=dragIndex;draw();svg.setPointerCapture(event.pointerId);point.focus();event.preventDefault();
+    dragKind='anchor';dragIndex=Number(point.dataset.index);selectedPoint=dragIndex;draw();svg.setPointerCapture(event.pointerId);point.focus();event.preventDefault();
   });
   svg.addEventListener('pointermove',event=>{
-    if(dragIndex<0)return;const r=svg.getBoundingClientRect();move(dragIndex,(event.clientX-r.left)/r.width,(event.clientY-r.top)/r.height);
+    if(dragIndex<0)return;const r=svg.getBoundingClientRect(),x=(event.clientX-r.left)/r.width,y=(event.clientY-r.top)/r.height;
+    if(dragKind==='anchor')move(dragIndex,x,y);else moveHandle(dragKind,x,y,event.altKey);
   });
   function release(){dragIndex=-1;}
   svg.addEventListener('pointerup',release);svg.addEventListener('pointercancel',release);svg.addEventListener('lostpointercapture',release);
@@ -83,20 +120,41 @@ export function initRouteEditor(world,{begin,end}){
     if(event.key==='Insert'){event.preventDefault();addPoint();return;}
     if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
     event.preventDefault();const guide=world.getUfoGuide(),r=svg.getBoundingClientRect(),step=event.shiftKey?12:3;
-    const [x,y]=config.points[index];move(index,guide.moon[0]+x+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0)/r.width,guide.moon[1]+y+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0)/r.height);
+    const [x,y]=config.nodes[index].p;move(index,guide.moon[0]+x+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0)/r.width,guide.moon[1]+y+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0)/r.height);
   });
   handles.addEventListener('focusin',event=>{const index=Number(event.target.closest('[data-index]')?.dataset.index);if(Number.isInteger(index)){selectedPoint=index;draw();}});
+  controls.addEventListener('keydown',event=>{
+    if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+    event.preventDefault();const kind=event.target.dataset.handle,node=config.nodes[selectedPoint],guide=world.getUfoGuide(),r=svg.getBoundingClientRect(),step=event.shiftKey?12:3;
+    moveHandle(kind,guide.moon[0]+node.p[0]+node[kind][0]+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0)/r.width,guide.moon[1]+node.p[1]+node[kind][1]+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0)/r.height,event.altKey);
+  });
+  svg.addEventListener('dblclick',event=>{
+    if(!['route-hit','route-path'].includes(event.target.id)||config.nodes.length>=48)return;
+    const r=svg.getBoundingClientRect(),guide=world.getUfoGuide(),x=(event.clientX-r.left)/r.width-guide.moon[0],y=(event.clientY-r.top)/r.height-guide.moon[1];
+    let best={distance:Infinity,index:0,t:.5};
+    for(let index=0;index<config.nodes.length-1;index++)for(let sample=1;sample<40;sample++){
+      const t=sample/40,p=cubicPoint(config.nodes[index],config.nodes[index+1],t),distance=Math.hypot((p[0]-x)*r.width,(p[1]-y)*r.height);
+      if(distance<best.distance)best={distance,index,t};
+    }
+    splitSegment(config.nodes,best.index,best.t);selectedPoint=best.index+1;applyDraft();focusPoint();
+  });
+  $('point-mode').addEventListener('click',()=>{
+    const node=config.nodes[selectedPoint];node.smooth=node.smooth===false;
+    if(node.smooth){const length=Math.hypot(...node.in)||Math.hypot(...node.out),otherLength=Math.hypot(...node.out);if(otherLength>1e-6)node.in=node.out.map(v=>-v/otherLength*length);}
+    applyDraft();
+  });
   function focusPoint(){handles.children[selectedPoint]?.focus();}
   function addPoint(){
-    if(config.points.length>=32)return;
-    const a=config.points[selectedPoint],b=config.points[(selectedPoint+1)%config.points.length];
-    config.points.splice(selectedPoint+1,0,[(a[0]+b[0])/2,(a[1]+b[1])/2]);selectedPoint++;applyDraft();focusPoint();
+    if(config.nodes.length>=48)return;
+    const index=Math.min(selectedPoint,config.nodes.length-2);
+    splitSegment(config.nodes,index);selectedPoint=index+1;applyDraft();focusPoint();
   }
   function deletePoint(){
-    if(config.points.length<=3)return;
-    config.points.splice(selectedPoint,1);selectedPoint=Math.min(selectedPoint,config.points.length-1);applyDraft();focusPoint();
+    if(config.nodes.length<=3)return;
+    config.nodes.splice(selectedPoint,1);selectedPoint=Math.min(selectedPoint,config.nodes.length-1);applyDraft();focusPoint();
   }
   $('point-add').addEventListener('click',addPoint);$('point-delete').addEventListener('click',deletePoint);
+  $('route-collapse').addEventListener('click',()=>{const panel=root.querySelector('.route-panel'),collapsed=panel.classList.toggle('compact');$('route-collapse').textContent=collapsed?'展開面板':'收合面板';$('route-collapse').setAttribute('aria-expanded',String(!collapsed));});
   $('route-name').addEventListener('input',event=>{config.name=event.target.value.slice(0,24);routeTabs();});
   $('route-add').addEventListener('click',()=>{
     if(routes.length>=12)return;
@@ -115,7 +173,7 @@ export function initRouteEditor(world,{begin,end}){
     catch{$('route-status').textContent='瀏覽器無法儲存，請匯出航線以保留調整。';}
   });
   $('route-export').addEventListener('click',()=>{
-    const blob=new Blob([JSON.stringify({version:2,routes},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
+    const blob=new Blob([JSON.stringify({version:3,routes},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');
     link.href=url;link.download='ufo-routes.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
     $('route-status').textContent='已匯出全部航線 ufo-routes.json。';
   });
@@ -123,7 +181,7 @@ export function initRouteEditor(world,{begin,end}){
     if(!active)return;
     if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();close();return;}
     if(event.key==='Tab'){
-      const focusable=[...root.querySelectorAll('button:not(:disabled),input,[tabindex="0"]')],index=focusable.indexOf(document.activeElement);
+      const focusable=[...root.querySelectorAll('button:not(:disabled),input,[tabindex="0"]')].filter(el=>el.getBoundingClientRect().width>0),index=focusable.indexOf(document.activeElement);
       if(event.shiftKey&&index<=0){event.preventDefault();focusable.at(-1).focus();}
       else if(!event.shiftKey&&(index===focusable.length-1||index<0)){event.preventDefault();focusable[0].focus();}
     }
