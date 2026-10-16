@@ -101,13 +101,28 @@ export async function createWorld(container,options={}){
   let nextUfoAt=12,ufoFlight;
   function animateUfo(){
     if(!night||matchMedia('(prefers-reduced-motion: reduce)').matches){ufo.visible=false;return;}
-    if(!ufoFlight&&elapsed>=nextUfoAt)ufoFlight={start:elapsed,duration:10};
+    if(!ufoFlight&&elapsed>=nextUfoAt)ufoFlight={start:elapsed,duration:20};
     if(!ufoFlight)return;
     const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
     if(t>=1){ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+45+random()*45;return;}
     ufo.visible=true;
-    ufo.position.set(moon.position.x+40-t*125,moon.position.y+1.2+Math.sin(t*Math.PI*2)*.45,moon.position.z+2);
-    ufo.rotation.set(.08,elapsed*.35,Math.sin(t*6.28)*.1);
+    const orbitStart=.23,orbitEnd=.76;
+    let x,y,z,bank;
+    if(t<orbitStart){
+      const p=t/orbitStart,e=1-Math.pow(1-p,3);
+      x=THREE.MathUtils.lerp(48,5,e);y=THREE.MathUtils.lerp(5,0,e)+Math.sin(p*Math.PI)*2;
+      z=THREE.MathUtils.lerp(3,0,e);bank=-.2*Math.sin(p*Math.PI);
+    }else if(t<orbitEnd){
+      const p=(t-orbitStart)/(orbitEnd-orbitStart),angle=p*Math.PI*4;
+      x=5*Math.cos(angle);y=2.25*Math.sin(angle);
+      z=3.2*Math.sin(angle);bank=-.22*Math.cos(angle);
+    }else{
+      const p=(t-orbitEnd)/(1-orbitEnd),e=p*p;
+      x=THREE.MathUtils.lerp(5,-95,e);y=Math.sin(p*Math.PI)*5-p*2;
+      z=THREE.MathUtils.lerp(0,-8,e);bank=.3*Math.sin(p*Math.PI);
+    }
+    ufo.position.set(moon.position.x+x,moon.position.y+y,moon.position.z+z);
+    ufo.rotation.set(.08+Math.sin(elapsed)*.05,elapsed*.4,bank);
   }
   // The shoreline, sloping beach and displaced water share one world-space frame.
   const coastUniforms={coastOrigin:{value:new THREE.Vector2()},coastTangent:{value:new THREE.Vector2(1,0)},coastNormal:{value:new THREE.Vector2(0,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
@@ -319,7 +334,7 @@ export async function createWorld(container,options={}){
   for(let i=0;i<3;i++)box(torso,0,2.48,-1.37+i*.19,.95,.07,.085,eyeWhite,false);
   // Small inset panels, nostrils, belly plates and toe claws add construction detail.
   const belly=new THREE.MeshStandardMaterial({color:'#9aab9c',roughness:.46});
-  for(const material of [dark,darkSide,eyeWhite,eyeBlack,belly])material.fog=false;
+  for(const material of [dark,darkSide,eyeWhite,eyeBlack,belly])material.fog=true;
   for(let i=0;i<4;i++)box(torso,0,1.3+i*.22,-.453,.58,.18,.035,belly);
   for(const side of [-1,1]){
     box(torso,side*.584,2.83,-1.3,.018,.08,.11,eyeBlack,false);
@@ -393,6 +408,22 @@ export async function createWorld(container,options={}){
     renderer.shadowMap.needsUpdate=true;resize();
   }
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
+  // A billowing bank travels toward and then behind the running dinosaur.
+  const mistCanvas=document.createElement('canvas');mistCanvas.width=128;mistCanvas.height=128;
+  const mistContext=mistCanvas.getContext('2d');
+  for(const [x,y,r] of [[49,62,48],[79,57,42],[67,81,39]]){
+    const gradient=mistContext.createRadialGradient(x,y,0,x,y,r);
+    gradient.addColorStop(0,'rgba(255,255,255,.65)');gradient.addColorStop(.45,'rgba(255,255,255,.36)');gradient.addColorStop(1,'rgba(255,255,255,0)');
+    mistContext.fillStyle=gradient;mistContext.fillRect(0,0,128,128);
+  }
+  const mistTexture=new THREE.CanvasTexture(mistCanvas);
+  const mistMaterial=new THREE.SpriteMaterial({map:mistTexture,color:'#dbe8ed',transparent:true,opacity:0,depthWrite:false,depthTest:false,fog:false,toneMapped:false});
+  const mistBank=new THREE.Group();mistBank.rotation.y=Math.PI/4;mistBank.visible=false;scene.add(mistBank);
+  for(let i=0;i<24;i++){
+    const cloud=new THREE.Sprite(mistMaterial);cloud.renderOrder=10;
+    cloud.position.set((i%8-3.5)*3.5,.8+Math.floor(i/8)*2.8,Math.sin(i*2.1)*2.8);
+    cloud.scale.set(11+(i%3)*2,7+(i%4),1);mistBank.add(cloud);
+  }
   let scenerySnapshot,sceneTransition,pendingBiome;
   function beginSceneryTransition(){
     if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
@@ -410,11 +441,16 @@ export async function createWorld(container,options={}){
     animation.finished.then(()=>{snapshot.remove();if(scenerySnapshot===snapshot)scenerySnapshot=undefined;},()=>{});
   }
   function setBiome(b){
-    if(sceneTransition){pendingBiome=b;return;}
+    if(sceneTransition){
+      if(sceneTransition.phase==='out'){sceneTransition.to=b;sceneTransition.skyTo.set(night?'#101c35':palettes[b].sky);}
+      else pendingBiome=b;
+      return;
+    }
     if(b===biome)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){commitBiome(b);render();return;}
-    sceneTransition={to:b,phase:'out',time:0,records:assemblyRecords(),skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
-    container.dataset.transition='disassembling';
+    sceneTransition={to:b,phase:'out',time:0,skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
+    mistBank.visible=true;
+    container.dataset.transition='entering-mist';
     requestTick();
   }
   function commitBiome(b){
@@ -432,71 +468,37 @@ export async function createWorld(container,options={}){
     if(sceneTransition){sceneTransition.skyFrom.copy(scene.background);sceneTransition.skyTo.set(night?'#101c35':palettes[sceneTransition.to].sky);}
     render();
   }
-  function assemblyRecords(){
-    const meshes=[],groups=[];
-    for(const chunk of chunks){
-      for(const object of chunk.group.children){
-        if(object.isInstancedMesh)meshes.push({mesh:object,base:object.instanceMatrix.array.slice()});
-        else if(object.visible)for(const group of object.children)if(group.visible)groups.push({group,y:group.position.y,scale:group.scale.clone(),rotation:group.rotation.z});
-      }
-    }
-    return {meshes,groups};
-  }
-  function assemblyAmount(p,seed,incoming){
-    const delay=(Math.sin(seed*1.71)*.5+.5)*.22;
-    const t=THREE.MathUtils.clamp((p-delay)/.78,0,1),smooth=t*t*(3-2*t);
-    return incoming?1-smooth:smooth;
-  }
-  function animateAssembly(records,p,incoming){
-    for(const {mesh,base} of records.meshes){
-      const array=mesh.instanceMatrix.array;array.set(base);
-      for(let i=0;i<mesh.count;i++){
-        const offset=i*16;if(Math.abs(base[offset])+Math.abs(base[offset+5])+Math.abs(base[offset+10])<.00001)continue;
-        const a=assemblyAmount(p,base[offset+12]+i*.13,incoming),scale=1-a;
-        for(let j=0;j<12;j++)array[offset+j]=base[offset+j]*scale;
-        array[offset+13]=base[offset+13]+a*(3.2+Math.sin(i)*.6);
-      }
-      mesh.instanceMatrix.needsUpdate=true;
-    }
-    records.groups.forEach(({group,y,scale,rotation},i)=>{
-      const a=assemblyAmount(p,i*1.3,incoming);
-      group.position.y=y+a*5;group.scale.copy(scale).multiplyScalar(1-a);group.rotation.z=rotation+a*.18*Math.sin(i*2);
-    });
-  }
-  function resetAssembly(records){
-    records.meshes.forEach(({mesh,base})=>{mesh.instanceMatrix.array.set(base);mesh.instanceMatrix.needsUpdate=true;});
-    records.groups.forEach(({group,y,scale,rotation})=>{group.position.y=y;group.scale.copy(scale);group.rotation.z=rotation;});
-  }
   function animateSceneTransition(delta){
     if(!sceneTransition)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){finishSceneTransition();return;}
     const transition=sceneTransition;transition.time+=delta;
-    const incoming=transition.phase==='in',duration=incoming?1.45:1.1;
+    const incoming=transition.phase==='in',duration=1.85;
     const p=Math.min(1,transition.time/duration),ease=p*p*(3-2*p);
-    const veil=incoming?1-THREE.MathUtils.smoothstep(p,0,.44):THREE.MathUtils.smoothstep(p,.62,1);
-    animateAssembly(transition.records,p,incoming);
-    sea.position.y=-veil*.9;
-    scene.fog.near=THREE.MathUtils.lerp(38,2,veil);scene.fog.far=THREE.MathUtils.lerp(115,13,veil);
+    const veil=incoming?1-THREE.MathUtils.smoothstep(p,.18,1):THREE.MathUtils.smoothstep(p,.2,.88);
+    const travel=incoming?ease*18:-18+ease*18;
+    mistBank.position.set(anchorPoint.x+Math.sin(Math.PI/4)*travel,0,anchorPoint.z+Math.cos(Math.PI/4)*travel);
+    mistBank.children.forEach((cloud,i)=>{cloud.position.y=.8+Math.floor(i/8)*2.8+Math.sin(transition.time*.6+i)*.25;});
+    mistMaterial.opacity=(incoming?1-ease:ease)*.55;
+    scene.fog.near=THREE.MathUtils.lerp(38,0,veil);scene.fog.far=THREE.MathUtils.lerp(115,9,veil);
     scene.background.copy(transition.skyFrom).lerp(transition.skyTo,incoming?.5+ease*.5:ease*.5);scene.fog.color.copy(scene.background);
+    mistMaterial.color.copy(scene.fog.color).lerp(new THREE.Color(night?'#71879d':'#f7faf7'),night?.12:.35);
     if(p<1)return;
-    resetAssembly(transition.records);
     if(!incoming){
       commitBiome(transition.to);
       scene.background.copy(transition.skyFrom).lerp(transition.skyTo,.5);scene.fog.color.copy(scene.background);
-      transition.phase='in';transition.time=0;transition.records=assemblyRecords();
-      animateAssembly(transition.records,0,true);
-      scene.fog.near=2;scene.fog.far=13;
-      container.dataset.transition='assembling';
+      transition.phase='in';transition.time=0;
+      scene.fog.near=0;scene.fog.far=9;
+      container.dataset.transition='leaving-mist';
     }else{
-      sceneTransition=undefined;sea.position.y=0;scene.fog.near=38;scene.fog.far=115;updatePalette();delete container.dataset.transition;
+      sceneTransition=undefined;mistBank.visible=false;mistMaterial.opacity=0;scene.fog.near=38;scene.fog.far=115;updatePalette();delete container.dataset.transition;
       const next=pendingBiome;pendingBiome=undefined;if(next&&next!==biome)setBiome(next);
     }
   }
   function finishSceneTransition(){
     if(!sceneTransition)return;
     const next=pendingBiome||sceneTransition.to;
-    resetAssembly(sceneTransition.records);sceneTransition=undefined;pendingBiome=undefined;
-    commitBiome(next);sea.position.y=0;scene.fog.near=38;scene.fog.far=115;delete container.dataset.transition;
+    sceneTransition=undefined;pendingBiome=undefined;mistBank.visible=false;mistMaterial.opacity=0;
+    commitBiome(next);scene.fog.near=38;scene.fog.far=115;delete container.dataset.transition;
   }
   function alignCoastMotion(){
     // Keep the established heading and travel direction identical in every biome.
@@ -574,7 +576,7 @@ export async function createWorld(container,options={}){
     coastUniforms.coastTime.value=elapsed;
     if(biome==='coast')animateWater();
     const speed=2.65;
-    if(!sceneTransition)for(const {group} of chunks){group.position.z+=delta*speed;if(group.position.z>60)group.position.z-=chunkCount*chunkLength;}
+    for(const {group} of chunks){group.position.z+=delta*speed;if(group.position.z>60)group.position.z-=chunkCount*chunkLength;}
     const phase=elapsed*8.8;
     torso.position.y=Math.abs(Math.sin(phase))*.07;
     torso.rotation.x=Math.sin(phase*2)*.014;
