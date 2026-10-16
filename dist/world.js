@@ -83,7 +83,7 @@ export async function createWorld(container,options={}){
   const shoreGeometry=new THREE.BufferGeometry();
   shoreGeometry.setAttribute('position',new THREE.Float32BufferAttribute([
     -105,-.285,5, 105,-.285,8, 105,-.285,108, -105,-.285,108
-  ],3));shoreGeometry.setIndex([0,1,2,0,2,3]);shoreGeometry.computeVertexNormals();
+  ],3));shoreGeometry.setIndex([0,2,1,0,3,2]);shoreGeometry.computeVertexNormals();
   const water=new THREE.Mesh(shoreGeometry,waterMat);water.receiveShadow=true;sea.add(water);
   for(let row=0;row<6;row++){
     const foam=new THREE.Mesh(new THREE.BoxGeometry(28-row*1.8,.035,.18),foamMat);
