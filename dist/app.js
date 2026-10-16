@@ -99,7 +99,7 @@ function setBiome(b){
   state.biome=b;
   document.querySelectorAll('[data-biome]').forEach(btn=>{const active=btn.dataset.biome===b;btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active));});
   world?.setBiome(b);
-  $('#announcer').textContent=`已切換為${b==='grass'?'草原':'沙漠'}環境`;
+  $('#announcer').textContent=`已切換為${({grass:'草原',desert:'沙漠',coast:'海岸'})[b]}環境`;
 }
 document.querySelectorAll('[data-biome]').forEach(btn=>btn.addEventListener('click',()=>setBiome(btn.dataset.biome)));
 function toggleSettings(force){const open=force??$('#settings').hidden;$('#settings').hidden=!open;$('#settings-toggle').setAttribute('aria-expanded',String(open));if(!open)$('#settings-toggle').focus({preventScroll:true});}
@@ -111,7 +111,7 @@ $('#auto-biome').addEventListener('change',e=>{state.auto=e.target.checked;});
 let lastAuto=0;
 function report(stats){
   $('#diagnostics').replaceChildren(...Object.entries({'渲染':'Three.js / WebGL2','畫面更新':`${stats.fps} FPS`,'繪製呼叫':stats.calls,'三角形':stats.triangles.toLocaleString(),'動態':state.paused?'已暫停':document.hidden?'分頁暫停':'播放中'}).flatMap(([k,v])=>[Object.assign(document.createElement('dt'),{textContent:k}),Object.assign(document.createElement('dd'),{textContent:String(v)})]));
-  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=30){setBiome(state.biome==='grass'?'desert':'grass');lastAuto=0;}}
+  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=30){const order=['grass','desert','coast'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
 }
 renderTools();updatePause();updateNight();
 try{

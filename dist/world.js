@@ -22,13 +22,14 @@ export async function createWorld(container,options={}){
   let quality=options.quality||'balanced';
   let paused=!!options.paused;
   let biome=options.biome||'grass';
-  let targetBiome=biome==='desert'?1:0;
-  let mix=targetBiome;
+  let targetBiome=biome;
+  let mix=biome==='desert'?1:0;
   let elapsed=0;
   let night=!!options.night;
   const palettes={
     grass:{sky:'#cee5f1',ground:'#8aa968',brick:'#a8bd7c',stud:'#b4c487',hill:'#8ba991',hilltop:'#b3c5a0',path:'#d9cfac',rock:'#aab0a4',tree:'#527f58',trunk:'#c0a070',flower:'#f0a071'},
-    desert:{sky:'#e8e5d9',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'}
+    desert:{sky:'#e8e5d9',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'},
+    coast:{sky:'#bfe0ee',ground:'#e7c98e',brick:'#efdaab',stud:'#f7e5bc',hill:'#b5d8df',hilltop:'#d8edf0',path:'#c99f69',rock:'#9aabb0',tree:'#3e8b73',trunk:'#b98155',flower:'#f4aa75'}
   };
   const materials={};
   for(const key of Object.keys(palettes.grass)){
@@ -40,6 +41,8 @@ export async function createWorld(container,options={}){
   const eyeWhite=new THREE.MeshStandardMaterial({color:'#faf6df',roughness:.7});
   const eyeBlack=new THREE.MeshStandardMaterial({color:'#26343b',roughness:.7});
   const whiteMat=new THREE.MeshStandardMaterial({color:'#fff9e8',roughness:.92});
+  const waterMat=new THREE.MeshStandardMaterial({color:'#4dabc2',roughness:.28,metalness:.08,transparent:true,opacity:.94});
+  const foamMat=new THREE.MeshStandardMaterial({color:'#e8fbf6',roughness:.72});
   const cube=new THREE.BoxGeometry(1,1,1);
   const brickProfile=new THREE.Shape();
   brickProfile.moveTo(-.47,-.47);brickProfile.lineTo(.47,-.47);brickProfile.lineTo(.47,.47);brickProfile.lineTo(-.47,.47);brickProfile.closePath();
@@ -74,6 +77,18 @@ export async function createWorld(container,options={}){
   for(let i=0;i<85;i++)starPositions.push((random()-.5)*150,12+random()*42,-60-random()*45);
   const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
   nightSky.add(new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#fff5df',size:.24,sizeAttenuation:true,fog:false,toneMapped:false})));
+  // The coast starts at the viewer's feet. Keeping the shoreline local to the dinosaur
+  // makes it read as a beach foreground instead of a distant blue horizon.
+  const sea=new THREE.Group();scene.add(sea);
+  const shoreGeometry=new THREE.BufferGeometry();
+  shoreGeometry.setAttribute('position',new THREE.Float32BufferAttribute([
+    -105,-.285,5, 105,-.285,8, 105,-.285,108, -105,-.285,108
+  ],3));shoreGeometry.setIndex([0,1,2,0,2,3]);shoreGeometry.computeVertexNormals();
+  const water=new THREE.Mesh(shoreGeometry,waterMat);water.receiveShadow=true;sea.add(water);
+  for(let row=0;row<6;row++){
+    const foam=new THREE.Mesh(new THREE.BoxGeometry(28-row*1.8,.035,.18),foamMat);
+    foam.position.set((row%2?5:-6),-.255,6+row*4.2);sea.add(foam);
+  }
   // A rotated, endless belt. A reserved central lane keeps scenery from intersecting the dinosaur.
   const belt=new THREE.Group();belt.rotation.y=Math.PI/4;scene.add(belt);
   const chunks=[];const chunkLength=15;const chunkCount=9;
@@ -88,6 +103,13 @@ export async function createWorld(container,options={}){
   function addCactus(parent,x,z,size=1){
     const g=new THREE.Group();g.position.set(x,-.3,z);g.scale.setScalar(size);parent.add(g);
     box(g,0,1.1,0,.48,2.25,.5,materials.tree);box(g,-.57,1.0,0,.72,.4,.4,materials.tree);box(g,-.74,1.42,0,.38,1.15,.4,materials.tree);box(g,.52,1.5,0,.65,.4,.42,materials.tree);box(g,.7,1.9,0,.35,1,.4,materials.tree);return g;
+  }
+  function addPalm(parent,x,z,size=1){
+    const g=new THREE.Group();g.position.set(x,-.3,z);g.scale.setScalar(size);parent.add(g);
+    box(g,0,1.25,0,.42,2.6,.42,materials.trunk);
+    box(g,.12,2.55,0,.72,.32,2.45,materials.tree);box(g,-.12,2.62,0,2.45,.3,.7,materials.tree);
+    box(g,.58,2.48,0,1.5,.22,.52,materials.tree);box(g,-.58,2.48,0,1.5,.22,.52,materials.tree);
+    return g;
   }
   for(let c=0;c<chunkCount;c++){
     const group=new THREE.Group();group.position.z=(c-5)*chunkLength;belt.add(group);
@@ -108,12 +130,13 @@ export async function createWorld(container,options={}){
     batch(group,cube,materials.rock,pebbles,false);
     const plants=batch(group,cube,materials.tree,sprouts,false);
     const flowerBed=batch(group,cube,materials.flower,flowers,false);
-    const trees=new THREE.Group(),cacti=new THREE.Group();group.add(trees,cacti);
+    const trees=new THREE.Group(),cacti=new THREE.Group(),palms=new THREE.Group();group.add(trees,cacti,palms);
     for(let j=0;j<3;j++){
       const x=(j%2?-1:1)*(13+random()*30);const z=(random()-.5)*chunkLength;
       addTree(trees,x,z,.65+random()*.4);addCactus(cacti,x+.7,z,.65+random()*.5);
+      addPalm(palms,x,z,.7+random()*.38);
     }
-    chunks.push({group,trees,cacti,plants,flowerBed});
+    chunks.push({group,trees,cacti,palms,plants,flowerBed});
   }
   // Original 45 degree heading, toward the upper-left of the scene.
   const dinoAnchor=new THREE.Group();scene.add(dinoAnchor);
@@ -173,6 +196,7 @@ export async function createWorld(container,options={}){
     raycaster.setFromCamera(new THREE.Vector2(mobile?.58:.68,mobile?-.82:-.67),camera);
     raycaster.ray.intersectPlane(groundPlane,anchorPoint);
     dinoAnchor.position.copy(anchorPoint);dinoAnchor.position.y=-.3;
+    sea.position.set(anchorPoint.x,0,anchorPoint.z);
     // Align the reserved local-X lane with the actual responsive dinosaur anchor.
     belt.position.set(anchorPoint.x,0,anchorPoint.z);
     dinoAnchor.scale.setScalar(Math.min(.95,w/h*.62));
@@ -185,25 +209,40 @@ export async function createWorld(container,options={}){
     renderer.shadowMap.needsUpdate=true;resize();
   }
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
-  function setBiome(b){biome=b;targetBiome=b==='desert'?1:0;if(paused){mix=targetBiome;updatePalette();render();}else requestTick();}
+  function setBiome(b){
+    const leftCoast=biome==='coast';biome=b;targetBiome=b;
+    if(b==='coast'||leftCoast)mix=b==='desert'?1:0;
+    updatePalette();
+    if(paused)render();else requestTick();
+  }
   function setNight(value){night=value;updatePalette();render();}
   const colorA=new THREE.Color(),colorB=new THREE.Color();
   function updatePalette(){
-    for(const [key,mat] of Object.entries(materials)){colorA.set(palettes.grass[key]);colorB.set(palettes.desert[key]);mat.color.copy(colorA).lerp(colorB,mix);}
-    colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);
+    for(const [key,mat] of Object.entries(materials)){
+      if(biome==='coast')mat.color.set(palettes.coast[key]);
+      else{colorA.set(palettes.grass[key]);colorB.set(palettes.desert[key]);mat.color.copy(colorA).lerp(colorB,mix);}
+    }
+    if(biome==='coast'){scene.background.set(palettes.coast.sky);scene.fog.color.set(palettes.coast.sky);}
+    else{colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);}
     nightSky.visible=night;cloudGroup.visible=!night;
+    sea.visible=biome==='coast';
     if(night){
       scene.background.set('#101c35');scene.fog.color.set('#101c35');
       hemi.color.set('#a9c9ff');hemi.groundColor.set('#384252');hemi.intensity=1.35;
       sun.color.set('#adcaff');sun.intensity=1.55;renderer.toneMappingExposure=.95;
       dark.color.set('#7d939e');darkSide.color.set('#94a9b1');
+      waterMat.color.set('#24516b');foamMat.color.set('#b9d8d8');
       for(const mat of Object.values(materials))mat.color.multiplyScalar(.68);
     }else{
       hemi.color.set('#f2faff');hemi.groundColor.set('#b5ad8c');hemi.intensity=2.2;
       sun.color.set('#fff5dc');sun.intensity=2.8;renderer.toneMappingExposure=1.02;
       dark.color.set('#535d60');darkSide.color.set('#657173');
+      waterMat.color.set('#4dabc2');foamMat.color.set('#e8fbf6');
     }
-    chunks.forEach(({trees,cacti,plants,flowerBed})=>{trees.visible=mix<.55;cacti.visible=mix>=.55;plants.visible=mix<.55;flowerBed.visible=mix<.55;});
+    chunks.forEach(({trees,cacti,palms,plants,flowerBed})=>{
+      trees.visible=biome==='grass';cacti.visible=biome==='desert';palms.visible=biome==='coast';
+      plants.visible=biome==='grass';flowerBed.visible=biome==='grass';
+    });
   }
   function animate(delta){
     elapsed+=delta;
@@ -217,7 +256,10 @@ export async function createWorld(container,options={}){
     tail.rotation.y=Math.sin(phase*.5)*.09;
     cloudGroup.position.x=Math.sin(elapsed*.025)*2;
     dust.forEach((p,i)=>{const t=((elapsed*1.3+i/6)%1);p.position.set((i%2-.5)*.75,.08+t*.38,.9+t*2.5);p.scale.setScalar(.08+(1-t)*.14);p.rotation.set(t*2,t*3,t);p.visible=t<.9;});
-    if(Math.abs(mix-targetBiome)>.002){mix=THREE.MathUtils.damp(mix,targetBiome,2.2,delta);updatePalette();}
+    if(targetBiome!=='coast'&&biome!=='coast'){
+      const target=targetBiome==='desert'?1:0;
+      if(Math.abs(mix-target)>.002){mix=THREE.MathUtils.damp(mix,target,2.2,delta);updatePalette();}
+    }
   }
   let last=performance.now(),lastReport=last,frames=0,raf=0;
   function render(){renderer.render(scene,camera);}

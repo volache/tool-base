@@ -44,14 +44,14 @@
     <div class="settings-head"><h2 id="settings-title">讓背景剛剛好</h2><button id="settings-close" class="icon-control control" aria-label="關閉設定">×</button></div>
     <label for="quality">畫質</label><select id="quality"><option value="balanced">均衡 · 建議</option><option value="high">精緻 · 較多細節</option><option value="low">輕量 · 省電</option></select>
     <p>輕量模式降低解析度與地景細節。</p>
-    <label class="check-row"><input type="checkbox" id="auto-biome"> 自動輪換草原與沙漠</label>
+    <label class="check-row"><input type="checkbox" id="auto-biome"> 自動輪換三種環境</label>
     <p id="render-status" role="status">正在準備積木世界…</p>
     <details><summary>原型驗證資訊</summary><dl id="diagnostics"><dt>渲染</dt><dd>載入中</dd></dl><p>恐龍留在原地，地景沿行進方向往後循環。</p></details>
   </aside>
 
   <footer class="bottom-bar">
     <div class="footer-note"><span class="small-mark" aria-hidden="true">▦</span><span>一點童心，一起開工。<small>工具內容為示範，尚未連接公司系統</small></span></div>
-    <div class="biome-switch" role="group" aria-label="背景環境"><button class="biome active" data-biome="grass" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9l5 6V5l4 10 5-8v12M2 20h20"/></svg>草原</button><button class="biome" data-biome="desert" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 19 7-11 6 11M11 19l5-8 6 8"/></svg>沙漠</button></div>
+    <div class="biome-switch" role="group" aria-label="背景環境"><button class="biome active" data-biome="grass" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9l5 6V5l4 10 5-8v12M2 20h20"/></svg>草原</button><button class="biome" data-biome="desert" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 19 7-11 6 11M11 19l5-8 6 8"/></svg>沙漠</button><button class="biome" data-biome="coast" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-5 5 5 9 0s6 5 9 0M3 21h18"/></svg>海岸</button></div>
     <button id="help" class="about-link">使用說明 <span aria-hidden="true">↗</span></button>
   </footer>
 
