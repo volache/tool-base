@@ -16,13 +16,13 @@ export function createVolumetricFog(THREE,renderer,camera){
   const noise=new THREE.Data3DTexture(data,size,size,size);
   noise.format=THREE.RedFormat;noise.type=THREE.UnsignedByteType;noise.minFilter=noise.magFilter=THREE.LinearFilter;
   noise.wrapS=noise.wrapT=noise.wrapR=THREE.RepeatWrapping;noise.unpackAlignment=1;noise.needsUpdate=true;
-  const uniforms={base:{value:target.texture},depth:{value:target.depthTexture},cloudNoise:{value:noise},inverseProjection:{value:camera.projectionMatrixInverse},cameraWorld:{value:camera.matrixWorld},cameraPositionWorld:{value:camera.position},fogEnabled:{value:0},front:{value:0},back:{value:0},anchor:{value:new THREE.Vector2()},tint:{value:new THREE.Color()},age:{value:0},seal:{value:0}};
+  const uniforms={base:{value:target.texture},depth:{value:target.depthTexture},cloudNoise:{value:noise},inverseProjection:{value:camera.projectionMatrixInverse},cameraWorld:{value:camera.matrixWorld},cameraPositionWorld:{value:camera.position},fogEnabled:{value:0},fogPresence:{value:0},front:{value:0},back:{value:0},anchor:{value:new THREE.Vector2()},tint:{value:new THREE.Color()},age:{value:0},seal:{value:0}};
   const material=new THREE.ShaderMaterial({uniforms,transparent:true,depthTest:false,depthWrite:false,toneMapped:false,
     vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
     fragmentShader:`precision highp sampler3D;
       varying vec2 vUv;uniform sampler2D base,depth;uniform sampler3D cloudNoise;
       uniform mat4 inverseProjection,cameraWorld;uniform vec3 cameraPositionWorld,tint;
-      uniform vec2 anchor;uniform float fogEnabled,front,back,age,seal;
+      uniform vec2 anchor;uniform float fogEnabled,fogPresence,front,back,age,seal;
       vec3 unproject(vec2 uv,float z){vec4 p=inverseProjection*vec4(uv*2.-1.,z*2.-1.,1.);p/=p.w;return (cameraWorld*p).xyz;}
       float density(vec3 p){
         float axis=dot(p.xz-anchor,vec2(.70710678));
@@ -56,7 +56,7 @@ export function createVolumetricFog(THREE,renderer,camera){
               scattered+=transmission*amount*tint*light;transmission*=1.-amount;
               if(transmission<.002)break;
             }
-            alpha=1.-transmission;color=scattered/max(alpha,.00001);
+            alpha=1.-transmission;color=scattered/max(alpha,.00001);alpha*=fogPresence;
           }
         }
         gl_FragColor=vec4(color,alpha);
@@ -68,6 +68,7 @@ export function createVolumetricFog(THREE,renderer,camera){
   function render(scene,state){
     if(!state){renderer.setRenderTarget(null);renderer.render(scene,camera);return;}
     uniforms.fogEnabled.value=1;
+    uniforms.fogPresence.value=THREE.MathUtils.smoothstep(state.age,0,1.5)*(1-THREE.MathUtils.smoothstep(state.age,4.9,6));
     uniforms.front.value=state.front;uniforms.back.value=state.back;uniforms.anchor.value.copy(state.anchor);uniforms.tint.value.copy(state.tint);uniforms.age.value=state.age;uniforms.seal.value=state.seal;
     renderer.setRenderTarget(target);renderer.render(scene,camera);
     const shadowUpdate=renderer.shadowMap.autoUpdate;renderer.shadowMap.autoUpdate=false;
