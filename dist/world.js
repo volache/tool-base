@@ -537,7 +537,10 @@ export async function createWorld(container,options={}){
     if(b===biome)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){commitBiome(b);render();return;}
     sceneTransition={to:b,phase:'out',time:0,age:0,skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
-    mistUniforms.tint.value.set(night?'#596c83':'#dce8e6');
+    const mistTint=sceneTransition.skyFrom.clone().lerp(sceneTransition.skyTo,.5);
+    mistTint.lerp(new THREE.Color(night?'#71879d':'#f5f8f5'),night?.14:.2);
+    // The fog fragment runs after output colour conversion, just like Three's fog.
+    mistUniforms.tint.value.copy(mistTint).convertLinearToSRGB();
     mistMaterial.color.set(night?'#a2b4ca':'#e5eeed');
     mistBank.visible=true;
     groundMist.mistActive.value=1;
