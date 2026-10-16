@@ -17,9 +17,9 @@
     <a class="brand" href="./" aria-label="工具基地首頁"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><strong>工具基地</strong><span class="brand-divider"></span><span class="brand-caption">讓工作，輕快一點。</span></a>
     <div class="clock" aria-label="目前時間"><time id="current-time">--:--</time><span id="current-date"></span></div>
     <div class="header-controls">
-      <button id="night" class="control icon-control" aria-label="切換黑夜模式" aria-pressed="false" title="切換黑夜模式">☾</button>
-      <button id="pause" class="control" aria-pressed="false"><span id="pause-icon" aria-hidden="true">Ⅱ</span><span id="pause-label">暫停動畫</span></button>
-      <button id="settings-toggle" class="control icon-control" aria-label="顯示設定" aria-expanded="false" aria-controls="settings">⚙</button>
+      <button id="night" class="control icon-control" aria-label="切換黑夜模式" aria-pressed="false" title="切換黑夜模式"><i data-lucide="moon" aria-hidden="true"></i></button>
+      <button id="pause" class="control" aria-pressed="false"><span id="pause-icon" aria-hidden="true"><i data-lucide="pause"></i></span><span id="pause-label">暫停動畫</span></button>
+      <button id="settings-toggle" class="control icon-control" aria-label="顯示設定" aria-expanded="false" aria-controls="settings"><i data-lucide="settings" aria-hidden="true"></i></button>
     </div>
   </header>
 
@@ -29,7 +29,7 @@
       <p class="intro">常用的工具，都在這裡。</p>
       <form class="search" role="search" autocomplete="off">
         <label class="sr-only" for="search">搜尋工具或用途</label>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="7.2"/><path d="m16.2 16.2 4.5 4.5"/></svg>
+        <i data-lucide="search" aria-hidden="true"></i>
         <input id="search" type="search" placeholder="搜尋工具或用途" spellcheck="false" aria-controls="tool-grid">
         <button id="google-search" class="google-search" type="submit" title="以 Google 搜尋" aria-label="以 Google 搜尋">Google</button>
         <kbd aria-hidden="true">Ctrl K</kbd>
@@ -41,21 +41,29 @@
   </main>
 
   <aside id="settings" class="settings" aria-labelledby="settings-title" hidden>
-    <div class="settings-head"><h2 id="settings-title">讓背景剛剛好</h2><button id="settings-close" class="icon-control control" aria-label="關閉設定">×</button></div>
-    <label for="quality">畫質</label><select id="quality"><option value="balanced">均衡 · 建議</option><option value="high">精緻 · 較多細節</option><option value="low">輕量 · 省電</option></select>
-    <p>輕量模式降低解析度與地景細節。</p>
+    <div class="settings-head"><h2 id="settings-title">讓背景剛剛好</h2><button id="settings-close" class="icon-control control" aria-label="關閉設定"><i data-lucide="x" aria-hidden="true"></i></button></div>
+    <label id="quality-field" for="quality">畫質</label>
+    <div class="quality-picker">
+      <button id="quality" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="quality-options" aria-labelledby="quality-field quality-label"><span id="quality-label">均衡 · 建議</span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
+      <ul id="quality-options" role="listbox" aria-labelledby="quality-field" hidden>
+        <li id="quality-balanced" role="option" aria-selected="true" data-quality="balanced"><span><strong>均衡</strong><small>清晰流暢，適合日常使用</small></span><i data-lucide="check" aria-hidden="true"></i></li>
+        <li id="quality-high" role="option" aria-selected="false" data-quality="high"><span><strong>精緻</strong><small>更細緻的陰影與畫面</small></span><i data-lucide="check" aria-hidden="true"></i></li>
+        <li id="quality-low" role="option" aria-selected="false" data-quality="low"><span><strong>輕量</strong><small>降低細節，節省電力</small></span><i data-lucide="check" aria-hidden="true"></i></li>
+      </ul>
+    </div>
+    <p>選擇適合裝置的畫質。</p>
     <label class="check-row"><input type="checkbox" id="auto-biome"> 自動輪換三種環境</label>
     <p id="render-status" class="sr-only" role="status">背景載入中</p>
   </aside>
 
   <footer class="bottom-bar">
-    <div class="footer-note"><span class="small-mark" aria-hidden="true">▦</span><span>一點童心，一起開工。</span></div>
-    <div class="biome-switch" role="group" aria-label="背景環境"><button class="biome active" data-biome="grass" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9l5 6V5l4 10 5-8v12M2 20h20"/></svg>草原</button><button class="biome" data-biome="desert" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 19 7-11 6 11M11 19l5-8 6 8"/></svg>沙漠</button><button class="biome" data-biome="coast" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-5 5 5 9 0s6 5 9 0M3 21h18"/></svg>海岸</button></div>
-    <button id="help" class="about-link">使用說明 <span aria-hidden="true">↗</span></button>
+    <div class="footer-note"><span class="small-mark" aria-hidden="true"><i data-lucide="blocks"></i></span><span>一點童心，一起開工。</span></div>
+    <div class="biome-switch" role="group" aria-label="背景環境"><button class="biome active" data-biome="grass" aria-pressed="true"><i data-lucide="trees" aria-hidden="true"></i>草原</button><button class="biome" data-biome="desert" aria-pressed="false"><i data-lucide="mountain" aria-hidden="true"></i>沙漠</button><button class="biome" data-biome="coast" aria-pressed="false"><i data-lucide="waves" aria-hidden="true"></i>海岸</button></div>
+    <button id="help" class="about-link">使用說明 <i data-lucide="arrow-up-right" aria-hidden="true"></i></button>
   </footer>
 
   <dialog id="tool-dialog" aria-labelledby="dialog-title">
-    <button class="dialog-close icon-control control" aria-label="關閉">×</button>
+    <button class="dialog-close icon-control control" aria-label="關閉"><i data-lucide="x" aria-hidden="true"></i></button>
     <span class="dialog-kicker" id="dialog-kicker">工具資訊</span>
     <h2 id="dialog-title"></h2><p id="dialog-copy"></p>
     <div class="tool-notice" id="dialog-note">此工具目前未開放，請洽管理員。</div>

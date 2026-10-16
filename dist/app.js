@@ -1,4 +1,5 @@
 import {tools} from './tools.js';
+import './vendor/lucide.min.js';
 
 const $ = (s) => document.querySelector(s);
 const grid = $('#tool-grid');
@@ -12,7 +13,9 @@ let world;
 let iconURLs = {};
 let currentQuery = '';
 let lastTrigger;
-const fallbackIcons={chart:'▥',document:'▤',board:'▦',calendar:'▣',search:'⌕',form:'▤'};
+const fallbackIcons={chart:'chart-column',document:'files',board:'panels-top-left',calendar:'calendar-days',search:'search',form:'clipboard-list'};
+function createIcon(name){const node=document.createElement('i');node.dataset.lucide=name;node.setAttribute('aria-hidden','true');return node;}
+function refreshIcons(){globalThis.lucide.createIcons({attrs:{'aria-hidden':'true',focusable:'false','stroke-width':1.8}});}
 const clockTime=new Intl.DateTimeFormat('zh-TW',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const clockDate=new Intl.DateTimeFormat('zh-TW',{month:'numeric',day:'numeric',weekday:'short'});
 function updateClock(){
@@ -42,11 +45,12 @@ function renderTools() {
     item.style.viewTransitionName=`tool-${t.id}`;
     if(t.url){item.href=t.url;item.target='_blank';item.rel='noopener noreferrer';}
     else item.type='button';
-    const art=iconURLs[t.icon] ? Object.assign(document.createElement('img'),{src:iconURLs[t.icon],alt:'',className:'tool-art',width:120,height:120}) : Object.assign(document.createElement('span'),{textContent:fallbackIcons[t.icon],className:'tool-fallback'});
+    const art=iconURLs[t.icon] ? Object.assign(document.createElement('img'),{src:iconURLs[t.icon],alt:'',className:'tool-art',width:120,height:120}) : Object.assign(document.createElement('span'),{className:'tool-fallback'});
+    if(!iconURLs[t.icon])art.append(createIcon(fallbackIcons[t.icon]));
     art.setAttribute('aria-hidden','true');
     const title=Object.assign(document.createElement('span'),{textContent:t.title,className:'tool-name'});
     const hint=Object.assign(document.createElement('span'),{textContent:t.url?'開啟工具':'工具資訊',className:'tile-hint'});
-    const arrow=Object.assign(document.createElement('span'),{textContent:'↗',className:'tile-arrow'});arrow.setAttribute('aria-hidden','true');
+    const arrow=Object.assign(document.createElement('span'),{className:'tile-arrow'});arrow.append(createIcon('arrow-up-right'));arrow.setAttribute('aria-hidden','true');
     item.append(art,title,hint,arrow);
     if(!t.url){item.setAttribute('aria-haspopup','dialog');item.addEventListener('click',()=>showTool(t,item));}
     else item.setAttribute('aria-label',`${t.title}（另開分頁）`);
@@ -56,6 +60,7 @@ function renderTools() {
   $('#result-label').textContent=q ? `找到 ${filtered.length} 個工具` : '選一個工具，開始吧';
   $('#tool-count').textContent=`${filtered.length} 個工具`;
   $('#announcer').textContent=q ? `找到 ${filtered.length} 個工具` : '';
+  refreshIcons();
 }
 let closingDialog=false;
 function openDialog(trigger){
@@ -109,9 +114,10 @@ document.addEventListener('keydown',e=>{
 });
 function updatePause(){
   $('#pause').setAttribute('aria-pressed',String(state.paused));
-  $('#pause-icon').textContent=state.paused?'▷':'Ⅱ';
+  $('#pause-icon').replaceChildren(createIcon(state.paused?'play':'pause'));
   $('#pause-label').textContent=state.paused?'播放動畫':'暫停動畫';
   world?.setPaused(state.paused);
+  refreshIcons();
 }
 $('#pause').addEventListener('click',()=>{state.paused=!state.paused;updatePause();});
 function updateNight(){
@@ -119,9 +125,10 @@ function updateNight(){
   $('#night').setAttribute('aria-pressed',String(state.night));
   $('#night').setAttribute('aria-label',state.night?'切換白天模式':'切換黑夜模式');
   $('#night').title=state.night?'切換白天模式':'切換黑夜模式';
-  $('#night').textContent=state.night?'☀':'☾';
+  $('#night').replaceChildren(createIcon(state.night?'sun':'moon'));
   document.querySelector('meta[name="theme-color"]').content=state.night?'#101c35':'#dceff2';
   world?.setNight(state.night);
+  refreshIcons();
 }
 $('#night').addEventListener('click',()=>{
   state.night=!state.night;updateNight();
@@ -136,11 +143,55 @@ function setBiome(b){
   $('#announcer').textContent=`已切換為${({grass:'草原',desert:'沙漠',coast:'海岸'})[b]}環境`;
 }
 document.querySelectorAll('[data-biome]').forEach(btn=>btn.addEventListener('click',()=>setBiome(btn.dataset.biome)));
-function toggleSettings(force){const open=force??$('#settings').hidden;$('#settings').hidden=!open;$('#settings-toggle').setAttribute('aria-expanded',String(open));if(!open)$('#settings-toggle').focus({preventScroll:true});}
+function toggleSettings(force){const open=force??$('#settings').hidden;$('#settings').hidden=!open;$('#settings-toggle').setAttribute('aria-expanded',String(open));if(!open){closeQuality();$('#settings-toggle').focus({preventScroll:true});}}
 $('#settings-toggle').addEventListener('click',()=>toggleSettings());
 $('#settings-close').addEventListener('click',()=>toggleSettings(false));
-document.addEventListener('pointerdown',e=>{if(!$('#settings').hidden&&!$('#settings').contains(e.target)&&!$('#settings-toggle').contains(e.target)){$('#settings').hidden=true;$('#settings-toggle').setAttribute('aria-expanded','false');}});
-$('#quality').addEventListener('change',e=>{state.quality=e.target.value;world?.setQuality(state.quality);});
+document.addEventListener('pointerdown',e=>{
+  if(!$('.quality-picker').contains(e.target))closeQuality();
+  if(!$('#settings').hidden&&!$('#settings').contains(e.target)&&!$('#settings-toggle').contains(e.target)){$('#settings').hidden=true;$('#settings-toggle').setAttribute('aria-expanded','false');}
+});
+const qualityItems=[...document.querySelectorAll('[data-quality]')];
+let qualityActive=0;
+function highlightQuality(index){
+  qualityActive=(index+qualityItems.length)%qualityItems.length;
+  qualityItems.forEach((item,i)=>item.classList.toggle('highlighted',i===qualityActive));
+  $('#quality').setAttribute('aria-activedescendant',qualityItems[qualityActive].id);
+}
+function openQuality(){
+  if($('#quality').disabled)return;
+  $('#quality-options').hidden=false;$('#quality').setAttribute('aria-expanded','true');
+  highlightQuality(qualityItems.findIndex(item=>item.dataset.quality===state.quality));
+}
+function closeQuality(){
+  $('#quality-options').hidden=true;$('#quality').setAttribute('aria-expanded','false');$('#quality').removeAttribute('aria-activedescendant');
+}
+function selectQuality(index){
+  state.quality=qualityItems[index].dataset.quality;
+  $('#quality-label').textContent=({balanced:'均衡 · 建議',high:'精緻 · 較多細節',low:'輕量 · 省電'})[state.quality];
+  qualityItems.forEach((item,i)=>item.setAttribute('aria-selected',String(i===index)));
+  world?.setQuality(state.quality);closeQuality();$('#quality').focus({preventScroll:true});
+  $('#announcer').textContent=`畫質已設為${qualityItems[index].querySelector('strong').textContent}`;
+}
+$('#quality').addEventListener('click',()=>{$('#quality-options').hidden?openQuality():closeQuality();});
+qualityItems.forEach((item,i)=>{
+  item.addEventListener('click',()=>selectQuality(i));
+  item.addEventListener('pointermove',()=>highlightQuality(i));
+});
+$('#quality').addEventListener('keydown',e=>{
+  const open=!$('#quality-options').hidden;
+  if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){
+    e.preventDefault();if(!open)openQuality();
+    if(e.key==='Home')highlightQuality(0);
+    else if(e.key==='End')highlightQuality(qualityItems.length-1);
+    else if(open)highlightQuality(qualityActive+(e.key==='ArrowDown'?1:-1));
+  }else if(e.key==='Enter'||e.key===' '){e.preventDefault();open?selectQuality(qualityActive):openQuality();}
+  else if(e.key==='Escape'&&open){e.preventDefault();e.stopPropagation();closeQuality();}
+  else if(e.key==='Tab'&&open){selectQuality(qualityActive);}
+  else if(e.key.length===1&&!e.ctrlKey&&!e.metaKey){
+    const i=qualityItems.findIndex(item=>item.dataset.quality.startsWith(e.key.toLowerCase()));
+    if(i>=0){e.preventDefault();if(!open)openQuality();highlightQuality(i);}
+  }
+});
 $('#auto-biome').addEventListener('change',e=>{state.auto=e.target.checked;});
 let lastAuto=0;
 function report(stats){
