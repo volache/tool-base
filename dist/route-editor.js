@@ -69,7 +69,12 @@ export function initRouteEditor(world,{begin,end}){
     $('ufo-duration').value=config.duration;$('ufo-duration-label').textContent=`${config.duration} 秒`;
   }
   let pendingFrame=0;
-  function applyDraft(){world.setUfoRoute(config);draw();}
+  function applyDraft(){
+    const {moon}=world.getUfoGuide();
+    // Keep anchors reachable when the browser's aspect ratio moves the moon.
+    for(const node of config.nodes){node.p[0]=Math.max(.025,Math.min(.975,moon[0]+node.p[0]))-moon[0];node.p[1]=Math.max(.07,Math.min(.85,moon[1]+node.p[1]))-moon[1];}
+    world.setUfoRoute(config);draw();
+  }
   function scheduleDraft(){if(!pendingFrame)pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;if(active)applyDraft();});}
   function open(){
     if(active)return;active=true;previous=begin();routes=copy(saved?.routes??defaults());routeIndex=0;selectedPoint=0;config=routes[0];routeTabs();
@@ -186,6 +191,6 @@ export function initRouteEditor(world,{begin,end}){
       else if(!event.shiftKey&&(index===focusable.length-1||index<0)){event.preventDefault();focusable[0].focus();}
     }
   },true);
-  window.addEventListener('resize',()=>{if(active){world.setUfoRoute(config);draw();}});
+  window.addEventListener('resize',()=>{if(active)applyDraft();});
   $('route-close').addEventListener('click',close);$('edit-ufo').disabled=false;$('edit-ufo').addEventListener('click',open);
 }
