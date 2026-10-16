@@ -99,10 +99,12 @@ export async function createWorld(container,options={}){
   const ufoLights=new THREE.MeshBasicMaterial({color:'#f2df99',fog:false,toneMapped:false});
   for(let i=0;i<6;i++){const a=i/6*Math.PI*2;box(ufo,Math.cos(a)*.84,-.12,Math.sin(a)*.84,.16,.1,.16,ufoLights,false);}
   let nextUfoAt=12,ufoFlight,ufoRoute=0;
-  let customUfoCurve,ufoDuration=16,routePreview=false;
+  let customUfoCurve,ufoDuration=16,routePreview=false,customUfoRoutes=[];
   const flightPosition=new THREE.Vector3(),flightTangent=new THREE.Vector3();
   function createUfoFlight(){
-    return {start:elapsed,duration:ufoDuration,variant:ufoRoute++%3,radius:5+random(),phase:random()*.4};
+    const index=ufoRoute++;
+    if(customUfoRoutes.length){const route=customUfoRoutes[index%customUfoRoutes.length];customUfoCurve=route.curve;ufoDuration=route.duration;}
+    return {start:elapsed,duration:ufoDuration,variant:index%3,radius:5+random(),phase:random()*.4};
   }
   function sampleUfoFlight(flight,t,target){
     const {variant,radius,phase}=flight,direction=variant===1?-1:1;
@@ -135,26 +137,32 @@ export async function createWorld(container,options={}){
     ufo.rotation.z=THREE.MathUtils.damp(ufo.rotation.z,bank,4,Math.min(.05,elapsed-(ufoFlight.last??elapsed)));
     ufo.rotation.x=.08+Math.sin(t*Math.PI*4)*.035;ufoFlight.last=elapsed;
   }
-  function getUfoRoute(){
+  function getUfoRoute(variant=0){
     const center=moon.position.clone().project(camera),points=[];
     for(let i=0;i<8;i++){
-      const a=i/8*Math.PI*2,p=new THREE.Vector3(5.5*Math.cos(a),2.8*Math.sin(a),0).add(moon.position).project(camera);
+      const a=i/8*Math.PI*2,p=new THREE.Vector3((variant===2?7:5.5)*Math.cos(a),(variant===1?2.3*Math.sin(a*2)+.9*Math.sin(a):2.8*Math.sin(a)),0).add(moon.position).project(camera);
       points.push([(p.x-center.x)/2,(center.y-p.y)/2]);
     }
     return {points,duration:16};
   }
-  function setUfoRoute(config){
-    customUfoCurve=undefined;ufoDuration=config?.duration??16;
-    if(config?.points?.length>=4){
+  function buildUfoCurve(config){
+    if(config?.points?.length>=3){
       const center=moon.position.clone().project(camera),plane=new THREE.Plane(new THREE.Vector3(0,0,1),-moon.position.z),ray=new THREE.Raycaster();
       const points=config.points.map(([x,y])=>{
         ray.setFromCamera(new THREE.Vector2(center.x+x*2,center.y-y*2),camera);
         const point=new THREE.Vector3();ray.ray.intersectPlane(plane,point);return point.sub(moon.position);
       });
-      customUfoCurve=new THREE.CatmullRomCurve3(points,true,'centripetal');customUfoCurve.arcLengthDivisions=800;customUfoCurve.updateArcLengths();
+      const curve=new THREE.CatmullRomCurve3(points,true,'centripetal');curve.arcLengthDivisions=800;curve.updateArcLengths();return curve;
     }
+  }
+  function setUfoRoute(config){
+    customUfoRoutes=[];customUfoCurve=buildUfoCurve(config);ufoDuration=config?.duration??16;
     ufoFlight=undefined;nextUfoAt=elapsed;
     requestTick();
+  }
+  function setUfoRoutes(routes){
+    customUfoRoutes=(routes??[]).map(route=>({curve:buildUfoCurve(route),duration:route.duration})).filter(route=>route.curve);
+    customUfoCurve=undefined;ufoDuration=16;ufoRoute=0;ufoFlight=undefined;nextUfoAt=elapsed;requestTick();
   }
   function getUfoGuide(){
     const flight={variant:0,radius:5.5,phase:0},center=moon.position.clone().project(camera);
@@ -426,7 +434,6 @@ export async function createWorld(container,options={}){
   let w=1,h=1;
   const raycaster=new THREE.Raycaster();const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),.3);const anchorPoint=new THREE.Vector3();
   function resize(){
-    finishSceneTransition();
     w=container.clientWidth;h=container.clientHeight;
     camera.aspect=w/h;camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
@@ -453,7 +460,7 @@ export async function createWorld(container,options={}){
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
   // A billowing bank travels toward and then behind the running dinosaur.
   const mistUniforms={tint:{value:new THREE.Color('#dbe8ed')},opacity:{value:0},age:{value:0}};
-  const groundMist={mistActive:{value:0},mistFront:{value:-100},mistBack:{value:-300},mistAnchor:{value:new THREE.Vector2()},mistTint:{value:mistUniforms.tint.value}};
+  const groundMist={mistActive:{value:0},mistSeal:{value:0},mistFront:{value:-100},mistBack:{value:-300},mistAnchor:{value:new THREE.Vector2()},mistTint:{value:mistUniforms.tint.value}};
   // All ground, water and dinosaur fragments share the same moving fog volume.
   // The trailing boundary reveals the far side first, instead of fading the whole scene.
   const mistMaterials=new Set();
@@ -472,37 +479,39 @@ export async function createWorld(container,options={}){
             mistPosition=instanceMatrix*mistPosition;
           #endif
           vMistWorld=(modelMatrix*mistPosition).xyz;`);
-        shader.fragmentShader='varying vec3 vMistWorld;uniform float mistActive,mistFront,mistBack;uniform vec2 mistAnchor;uniform vec3 mistTint;\n'+shader.fragmentShader;
+        shader.fragmentShader='varying vec3 vMistWorld;uniform float mistActive,mistSeal,mistFront,mistBack;uniform vec2 mistAnchor;uniform vec3 mistTint;\n'+shader.fragmentShader;
         shader.fragmentShader=shader.fragmentShader.replace('#include <fog_fragment>',`#include <fog_fragment>
           float mistAxis=dot(vMistWorld.xz-mistAnchor,vec2(.70710678));
           float mistEdge=sin(vMistWorld.x*.22+vMistWorld.z*.13)*1.5;
           float mistDensity=smoothstep(mistBack-7.+mistEdge,mistBack+7.+mistEdge,mistAxis)
             *(1.-smoothstep(mistFront-7.+mistEdge,mistFront+7.+mistEdge,mistAxis));
-          gl_FragColor.rgb=mix(gl_FragColor.rgb,mistTint,mistActive*mistDensity);`);
+          gl_FragColor.rgb=mix(gl_FragColor.rgb,mistTint,mistActive*max(mistDensity,mistSeal));`);
       };
       material.customProgramCacheKey=()=>previousKey()+'-ground-mist-v2';material.needsUpdate=true;
     }
   });
-  const mistMaterial=new THREE.ShaderMaterial({uniforms:mistUniforms,transparent:true,depthWrite:false,depthTest:true,side:THREE.DoubleSide,toneMapped:false,
-    vertexShader:`varying vec2 uvMist;varying vec3 worldMist;
-      void main(){uvMist=uv;vec4 p=modelMatrix*vec4(position,1.);worldMist=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}`,
-    fragmentShader:`uniform vec3 tint;uniform float opacity,age;varying vec2 uvMist;varying vec3 worldMist;
-      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-      float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
-      void main(){
-        float n=noise(worldMist.xz*.19+vec2(age*.12,worldMist.y*.24));
-        float billow=.67+n*.2;
-        float top=1.-smoothstep(billow-.26,billow,uvMist.y);
-        float sides=smoothstep(0.,.12,uvMist.x)*(1.-smoothstep(.88,1.,uvMist.x));
-        float bottom=smoothstep(0.,.1,uvMist.y);
-        float detail=.68+.32*noise(worldMist.xy*.5+vec2(age*.09,0.));
-        gl_FragColor=vec4(tint,opacity*top*sides*bottom*detail);
-      }`});
+  const mistMaterial=new THREE.MeshStandardMaterial({color:'#e5eeed',roughness:.96,transparent:true,opacity:.16,depthWrite:false,fog:false});
+  mistMaterial.onBeforeCompile=shader=>{
+    shader.vertexShader='varying float mistViewDistance;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nmistViewDistance=length(mvPosition.xyz);');
+    shader.fragmentShader='varying float mistViewDistance;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','diffuseColor.a*=smoothstep(5.,16.,mistViewDistance);\n#include <opaque_fragment>');
+  };
   const mistBank=new THREE.Group();mistBank.rotation.y=Math.PI/4;mistBank.visible=false;scene.add(mistBank);
-  for(let i=0;i<9;i++){
-    const cloud=new THREE.Mesh(new THREE.PlaneGeometry(100,18),mistMaterial);
-    cloud.position.set(0,6,i*1.6-6.4);mistBank.add(cloud);
+  const fogBlocks=[];
+  const fogRandom=n=>{const f=Math.sin(n*127.1+311.7)*43758.5453;return f-Math.floor(f);};
+  // Low, sparse voxel puffs rather than a wall of stacked bricks.
+  // The same finite bank keeps travelling forward through the scene change.
+  for(let row=0;row<5;row++)for(let column=0;column<16;column++){
+    const seed=row*16+column,x=(column-7.5)*5.4+(fogRandom(seed)-.5)*3,z=-row*29-fogRandom(seed+99)*4;
+    for(let puff=0;puff<7;puff++){
+      const angle=puff/7*Math.PI*2,radius=puff===0?0:1.1;
+      const px=x+Math.cos(angle)*radius,pz=z+Math.sin(angle)*radius;
+      const height=.38+fogRandom(seed+puff*37)*.38;
+      fogBlocks.push([px,.4+(puff%3)*.48,pz,1.5+fogRandom(seed+puff*83),height,1.8+fogRandom(seed+puff*11)*1.4]);
+    }
   }
+  batch(mistBank,bevelBrick,mistMaterial,fogBlocks,false);
   let scenerySnapshot,sceneTransition,pendingBiome;
   function beginSceneryTransition(){
     if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
@@ -528,6 +537,8 @@ export async function createWorld(container,options={}){
     if(b===biome)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){commitBiome(b);render();return;}
     sceneTransition={to:b,phase:'out',time:0,age:0,skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
+    mistUniforms.tint.value.set(night?'#596c83':'#dce8e6');
+    mistMaterial.color.set(night?'#a2b4ca':'#e5eeed');
     mistBank.visible=true;
     groundMist.mistActive.value=1;
     container.dataset.transition='entering-mist';
@@ -552,18 +563,18 @@ export async function createWorld(container,options={}){
     if(!sceneTransition)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){finishSceneTransition();return;}
     const transition=sceneTransition;transition.time+=delta;transition.age+=delta;
-    const incoming=transition.phase==='in',duration=incoming?3.2:2.6;
+    const incoming=transition.phase==='in',duration=3;
     const p=Math.min(1,transition.time/duration),ease=p*p*(3-2*p);
-    const travel=-55+(incoming?p:ease)*100;
+    const progress=Math.min(1,transition.age/6),sweep=progress*progress*(3-2*progress);
+    const travel=-65+sweep*230;
     groundMist.mistAnchor.value.set(anchorPoint.x,anchorPoint.z);
-    groundMist.mistFront.value=incoming?45:travel;
-    groundMist.mistBack.value=incoming?travel:-300;
+    groundMist.mistFront.value=travel;
+    groundMist.mistBack.value=travel-120;
+    groundMist.mistSeal.value=THREE.MathUtils.smoothstep(progress,.32,.46)*(1-THREE.MathUtils.smoothstep(progress,.54,.68));
     mistBank.position.set(anchorPoint.x+Math.sin(Math.PI/4)*travel,0,anchorPoint.z+Math.cos(Math.PI/4)*travel);
     mistUniforms.age.value=transition.age;
-    // Keep the outgoing edge thin so it cannot veil already-revealed distant terrain.
-    mistUniforms.opacity.value=incoming?.025:.46;
-    scene.background.copy(transition.skyFrom).lerp(transition.skyTo,incoming?.5+ease*.5:ease*.5);scene.fog.color.copy(scene.background);
-    mistUniforms.tint.value.copy(scene.fog.color).lerp(new THREE.Color(night?'#71879d':'#f7faf7'),night?.45:.65);
+    mistMaterial.opacity=night?.12:.16;
+    scene.background.copy(transition.skyFrom).lerp(transition.skyTo,sweep);scene.fog.color.copy(scene.background);
     if(p<1)return;
     if(!incoming){
       commitBiome(transition.to);
@@ -718,7 +729,7 @@ export async function createWorld(container,options={}){
   renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(raf);raf=0;document.querySelector('#render-status').textContent='3D 畫面暫時中斷；工具入口仍可使用。';});
   renderer.domElement.addEventListener('webglcontextrestored',()=>{last=performance.now();document.querySelector('#render-status').textContent='3D 世界已恢復';render();requestTick();});
   updatePalette();resize();setQuality(quality);report(true);requestTick();
-  return {icons,setPaused,setBiome,setQuality,setNight,getUfoRoute,setUfoRoute,getUfoGuide,previewUfoRoute};
+  return {icons,setPaused,setBiome,setQuality,setNight,getUfoRoute,setUfoRoute,setUfoRoutes,getUfoGuide,previewUfoRoute};
 
   function makeIcons(sharedRenderer){
     const result={};const iconScene=new THREE.Scene();

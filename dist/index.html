@@ -8,6 +8,7 @@
   <title>工具基地</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./route-editor.css">
 </head>
 <body>
   <div id="world" aria-hidden="true"></div>
@@ -65,11 +66,15 @@
     <svg id="route-overlay" aria-label="可拖曳的飛碟航線"><path id="route-path" fill="none"/><g id="route-handles"></g></svg>
     <aside class="route-panel" aria-labelledby="route-title">
       <div class="settings-head"><h2 id="route-title">飛碟航線</h2><button id="route-close" class="control icon-control" aria-label="關閉航線編輯器"><i data-lucide="x" aria-hidden="true"></i></button></div>
-      <p>拖曳編號點調整繞月路線。選取控制點後，也可用方向鍵微調。</p>
+      <div id="route-tabs" class="route-tabs" role="group" aria-label="選擇航線"></div>
+      <label for="route-name">航線名稱</label><input id="route-name" type="text" maxlength="24" autocomplete="off">
+      <div class="route-actions route-manage"><button id="route-add" type="button">新增航線</button><button id="route-delete" type="button">刪除此航線</button></div>
+      <p>拖曳編號點調整路線；選取航點後，可新增、刪除或用方向鍵微調。</p>
+      <div class="route-actions"><button id="point-add" type="button">新增航點</button><button id="point-delete" type="button">刪除航點</button></div><small id="point-status" role="status"></small>
       <label for="ufo-duration">完整飛行時間 <output id="ufo-duration-label">16 秒</output></label>
       <input id="ufo-duration" type="range" min="8" max="28" step="1" value="16">
       <small>秒數越少，速度越快；包含進場、繞月與離場。</small>
-      <div class="route-actions"><button id="route-replay" type="button">重新預覽</button><button id="route-reset" type="button">重設航線</button><button id="route-export" type="button">匯出航線</button><button id="route-save" type="button">儲存此航線</button></div>
+      <div class="route-actions"><button id="route-replay" type="button">重新預覽</button><button id="route-reset" type="button">重設航線</button><button id="route-export" type="button">匯出全部航線</button><button id="route-save" type="button">儲存全部航線</button></div>
       <p id="route-status" role="status">儲存僅套用在此瀏覽器。匯出後可將檔案提供給設計者定版。</p>
     </aside>
   </section>
