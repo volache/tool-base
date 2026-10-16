@@ -522,7 +522,8 @@ export async function createWorld(container,options={}){
     groundMist.mistBack.value=incoming?travel:-300;
     mistBank.position.set(anchorPoint.x+Math.sin(Math.PI/4)*travel,0,anchorPoint.z+Math.cos(Math.PI/4)*travel);
     mistUniforms.age.value=transition.age;
-    mistUniforms.opacity.value=.46;
+    // Keep the outgoing edge thin so it cannot veil already-revealed distant terrain.
+    mistUniforms.opacity.value=incoming?.025:.46;
     scene.background.copy(transition.skyFrom).lerp(transition.skyTo,incoming?.5+ease*.5:ease*.5);scene.fog.color.copy(scene.background);
     mistUniforms.tint.value.copy(scene.fog.color).lerp(new THREE.Color(night?'#71879d':'#f7faf7'),night?.45:.65);
     if(p<1)return;
