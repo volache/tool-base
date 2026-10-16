@@ -42,8 +42,21 @@ export async function createWorld(container,options={}){
   const eyeWhite=new THREE.MeshStandardMaterial({color:'#faf6df',roughness:.7});
   const eyeBlack=new THREE.MeshStandardMaterial({color:'#26343b',roughness:.7});
   const whiteMat=new THREE.MeshStandardMaterial({color:'#fff9e8',roughness:.92});
-  const waterMat=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.24,metalness:.12,side:THREE.DoubleSide,vertexColors:true});
-  const foamMat=new THREE.MeshStandardMaterial({color:'#e8fbf6',roughness:.72});
+  const waterMat=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.3,metalness:.08,side:THREE.DoubleSide,vertexColors:true,flatShading:true});
+  const foamMat=new THREE.MeshStandardMaterial({color:'#e8fbf6',roughness:.42});
+  const reflectionCanvas=document.createElement('canvas');reflectionCanvas.width=256;reflectionCanvas.height=128;
+  const reflectionTexture=new THREE.CanvasTexture(reflectionCanvas);reflectionTexture.mapping=THREE.EquirectangularReflectionMapping;reflectionTexture.colorSpace=THREE.SRGBColorSpace;
+  waterMat.envMap=reflectionTexture;waterMat.envMapIntensity=.55;
+  let reflectedNight;
+  function updateWaterReflection(){
+    if(reflectedNight===night)return;reflectedNight=night;
+    const context=reflectionCanvas.getContext('2d'),sky=context.createLinearGradient(0,0,0,128);
+    sky.addColorStop(0,night?'#08142b':'#82c6e0');sky.addColorStop(.48,night?'#244366':'#e5f2ed');sky.addColorStop(1,night?'#0c1b2b':'#628a90');
+    context.fillStyle=sky;context.fillRect(0,0,256,128);
+    const glow=context.createRadialGradient(160,38,1,160,38,night?12:22);
+    glow.addColorStop(0,night?'#fff3ce':'#fff9e3');glow.addColorStop(1,'rgba(255,248,220,0)');
+    context.fillStyle=glow;context.fillRect(128,6,64,64);reflectionTexture.needsUpdate=true;
+  }
   const cube=new THREE.BoxGeometry(1,1,1);
   const brickProfile=new THREE.Shape();
   brickProfile.moveTo(-.47,-.47);brickProfile.lineTo(.47,-.47);brickProfile.lineTo(.47,.47);brickProfile.lineTo(-.47,.47);brickProfile.closePath();
@@ -121,20 +134,22 @@ export async function createWorld(container,options={}){
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       float d=coastDistance();
       vec2 p=vCoastWorld.xz;
-      float cells=coastNoise(p*5.5+vec2(coastTime*.13,-coastTime*.09));
+      float cells=coastHash(floor(p*3.5));
       float depth=-.30-.22*d-vCoastWorld.y;
       float shore=1.0-smoothstep(.03,.25,abs(depth));
-      float lace=smoothstep(.35,.72,cells);
+      float lace=step(.56,cells);
       vec3 foamColor=mix(vec3(.84,.94,.87),vec3(.36,.51,.58),coastNight);
-      diffuseColor.rgb=mix(diffuseColor.rgb,foamColor,shore*(.35+.6*lace));
+      diffuseColor.rgb=mix(diffuseColor.rgb,foamColor,shore*lace*.2);
     `);
   };
-  waterMat.customProgramCacheKey=()=> 'world-coast-water-v1';
+  waterMat.customProgramCacheKey=()=> 'world-coast-water-v2';
   const sea=new THREE.Group();scene.add(sea);
   const beachMat=new THREE.MeshStandardMaterial({color:'#dbc18e',roughness:.95,vertexColors:true,side:THREE.DoubleSide});
   const shoreGeometry=new THREE.BufferGeometry(),beachGeometry=new THREE.BufferGeometry();
   const water=new THREE.Mesh(shoreGeometry,waterMat);water.receiveShadow=true;sea.add(water);
   const beach=new THREE.Mesh(beachGeometry,beachMat);beach.receiveShadow=true;sea.add(beach);
+  const foamBricks=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),foamMat,420);foamBricks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);foamBricks.frustumCulled=false;sea.add(foamBricks);
+  const foamSamples=[],foamDummy=new THREE.Object3D();
   const waterSamples=[];
   const shoreCurve=s=>.38*Math.sin(s*.28)+.12*Math.sin(s*.65+.5);
   function waveHeight(s,d,t){
@@ -179,6 +194,27 @@ export async function createWorld(container,options={}){
     }
     grid(shoreGeometry,56,65,-.5,true);
     grid(beachGeometry,14,7.5,-.5,false);
+    foamSamples.length=0;
+    for(let i=0;i<420;i++){
+      const s=-25+(length+50)*(Math.floor(i/3)/139),row=i%3;
+      const seed=Math.sin(i*91.7)*43758.5453,jitter=seed-Math.floor(seed);
+      foamSamples.push({s:s+jitter*.26,d:1.35+row*.27+jitter*.16,size:.14+jitter*.16,phase:jitter*6.28});
+    }
+    animateFoam();
+  }
+  function animateFoam(){
+    const origin=coastUniforms.coastOrigin.value,tangent=coastUniforms.coastTangent.value,normal=coastUniforms.coastNormal.value;
+    foamSamples.forEach(({s,d,size,phase},i)=>{
+      const drift=.08*Math.sin(elapsed*1.2+phase),cross=d+drift,y=waveHeight(s,cross,elapsed);
+      const depth=-.30-.22*cross-y;
+      const strength=Math.max(0,1-Math.abs(depth)/.16)*(.65+.35*Math.sin(elapsed*.8+phase));
+      const offset=cross+shoreCurve(s);
+      foamDummy.position.set(origin.x+tangent.x*s+normal.x*offset,y+.025,origin.y+tangent.y*s+normal.y*offset);
+      foamDummy.rotation.y=-Math.atan2(tangent.y,tangent.x);
+      foamDummy.scale.set(size*strength,.035*strength,size*.75*strength);
+      foamDummy.updateMatrix();foamBricks.setMatrixAt(i,foamDummy.matrix);
+    });
+    foamBricks.instanceMatrix.needsUpdate=true;
   }
   function animateWater(){
     const positions=shoreGeometry.attributes.position;
@@ -186,6 +222,7 @@ export async function createWorld(container,options={}){
       const {s,d}=waterSamples[i];positions.setY(i,waveHeight(s,d,elapsed));
     }
     positions.needsUpdate=true;shoreGeometry.computeVertexNormals();
+    animateFoam();
   }
   // A rotated, endless belt. A reserved central lane keeps scenery from intersecting the dinosaur.
   const belt=new THREE.Group();belt.rotation.y=Math.PI/4;scene.add(belt);
@@ -319,15 +356,33 @@ export async function createWorld(container,options={}){
     renderer.shadowMap.needsUpdate=true;resize();
   }
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
+  let scenerySnapshot;
+  function beginSceneryTransition(){
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    render();
+    const snapshot=document.createElement('canvas');snapshot.width=renderer.domElement.width;snapshot.height=renderer.domElement.height;
+    snapshot.setAttribute('aria-hidden','true');snapshot.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:1';
+    const context=snapshot.getContext('2d');context.drawImage(renderer.domElement,0,0);
+    if(scenerySnapshot){
+      context.globalAlpha=Number(getComputedStyle(scenerySnapshot).opacity);
+      context.drawImage(scenerySnapshot,0,0);context.globalAlpha=1;
+      scenerySnapshot.getAnimations().forEach(animation=>animation.cancel());scenerySnapshot.remove();
+    }
+    scenerySnapshot=snapshot;container.append(snapshot);
+    const animation=snapshot.animate([{opacity:1},{opacity:0}],{duration:900,easing:'cubic-bezier(.3,0,.2,1)',fill:'forwards'});
+    animation.finished.then(()=>{snapshot.remove();if(scenerySnapshot===snapshot)scenerySnapshot=undefined;},()=>{});
+  }
   function setBiome(b){
-    const leftCoast=biome==='coast';biome=b;targetBiome=b;
-    if(b==='coast'||leftCoast)mix=b==='desert'?1:0;
+    if(b===biome)return;
+    beginSceneryTransition();
+    biome=b;targetBiome=b;
+    mix=b==='desert'?1:0;
     updatePalette();
     alignCoastMotion();
     layoutCoastProps();
     if(paused)render();else requestTick();
   }
-  function setNight(value){night=value;updatePalette();render();}
+  function setNight(value){if(night===value)return;beginSceneryTransition();night=value;updatePalette();render();}
   function alignCoastMotion(){
     // Keep the established heading and travel direction identical in every biome.
     belt.rotation.y=Math.PI/4;dino.rotation.y=Math.PI/4;
@@ -369,6 +424,7 @@ export async function createWorld(container,options={}){
   }
   const colorA=new THREE.Color(),colorB=new THREE.Color();
   function updatePalette(){
+    updateWaterReflection();
     for(const [key,mat] of Object.entries(materials)){
       if(biome==='coast')mat.color.set(palettes.coast[key]);
       else{colorA.set(palettes.grass[key]);colorB.set(palettes.desert[key]);mat.color.copy(colorA).lerp(colorB,mix);}

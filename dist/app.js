@@ -13,6 +13,23 @@ let iconURLs = {};
 let currentQuery = '';
 let lastTrigger;
 const fallbackIcons={chart:'▥',document:'▤',board:'▦',calendar:'▣',search:'⌕',form:'▤'};
+const clockTime=new Intl.DateTimeFormat('zh-TW',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+const clockDate=new Intl.DateTimeFormat('zh-TW',{month:'numeric',day:'numeric',weekday:'short'});
+function updateClock(){
+  const now=new Date(),label=clockTime.format(now);
+  if($('#current-time').textContent!==label)$('#current-time').textContent=label;
+  $('#current-time').dateTime=now.toISOString();
+  $('#current-time').title=`本機時間 · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+  $('#current-date').textContent=clockDate.format(now);
+}
+updateClock();setInterval(updateClock,1000);
+let uiTransition;
+function transitionTools(){
+  if(reduced.matches||!document.startViewTransition){renderTools();return;}
+  uiTransition?.skipTransition();
+  uiTransition=document.startViewTransition(renderTools);
+  uiTransition.finished.catch(()=>{});
+}
 
 function renderTools() {
   const q = input.value.trim().toLocaleLowerCase();
@@ -22,6 +39,7 @@ function renderTools() {
     const item=document.createElement(t.url ? 'a' : 'button');
     item.className='tool-tile';
     item.dataset.tool=t.id;
+    item.style.viewTransitionName=`tool-${t.id}`;
     if(t.url){item.href=t.url;item.target='_blank';item.rel='noopener noreferrer';}
     else item.type='button';
     const art=iconURLs[t.icon] ? Object.assign(document.createElement('img'),{src:iconURLs[t.icon],alt:'',className:'tool-art',width:120,height:120}) : Object.assign(document.createElement('span'),{textContent:fallbackIcons[t.icon],className:'tool-fallback'});
@@ -39,7 +57,15 @@ function renderTools() {
   $('#tool-count').textContent=`${filtered.length} 個工具`;
   $('#announcer').textContent=q ? `找到 ${filtered.length} 個工具` : '';
 }
-function openDialog(trigger){lastTrigger=trigger;dialog.showModal();}
+let closingDialog=false;
+function openDialog(trigger){
+  lastTrigger=trigger;dialog.showModal();
+  if(!reduced.matches){
+    const from=trigger.getBoundingClientRect(),to=dialog.getBoundingClientRect();
+    const dx=(from.left+from.width/2-to.left-to.width/2)*.16,dy=(from.top+from.height/2-to.top-to.height/2)*.16;
+    dialog.animate([{opacity:0,transform:`translate(${dx}px,${dy}px) scale(.92)`},{opacity:1,transform:'none'}],{duration:260,easing:'cubic-bezier(.2,.7,.2,1)'});
+  }
+}
 function showTool(t,trigger){
   $('#dialog-kicker').textContent='工具資訊';
   $('#dialog-title').textContent=t.title;
@@ -49,7 +75,14 @@ function showTool(t,trigger){
   $('#dialog-done').textContent='回到工具基地';
   openDialog(trigger);
 }
-function closeDialog(){dialog.close();lastTrigger?.focus({preventScroll:true});}
+function closeDialog({focusTarget}={}){
+  if(closingDialog||!dialog.open)return;
+  const finish=()=>{dialog.close();closingDialog=false;(focusTarget||lastTrigger)?.focus({preventScroll:true});if(focusTarget===input)input.select();};
+  if(reduced.matches){finish();return;}
+  closingDialog=true;
+  dialog.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(8px) scale(.97)'}],{duration:150,easing:'ease-in'}).finished.then(finish,finish);
+}
+dialog.addEventListener('cancel',e=>{e.preventDefault();closeDialog();});
 $('.dialog-close').addEventListener('click',closeDialog);
 $('#dialog-done').addEventListener('click',closeDialog);
 dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
@@ -67,12 +100,12 @@ function searchGoogle(){
   window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`,'_blank','noopener,noreferrer');
 }
 $('.search').addEventListener('submit',e=>{e.preventDefault();searchGoogle();});
-input.addEventListener('input',renderTools);
-$('#clear-search').addEventListener('click',()=>{input.value='';renderTools();input.focus();});
+input.addEventListener('input',transitionTools);
+$('#clear-search').addEventListener('click',()=>{input.value='';transitionTools();input.focus();});
 $('#google-search-empty').addEventListener('click',searchGoogle);
 document.addEventListener('keydown',e=>{
-  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(dialog.open)closeDialog();input.focus();input.select();}
-  if(e.key==='Escape'&&!dialog.open){if(!$('#settings').hidden)toggleSettings(false);else if(currentQuery){input.value='';renderTools();}}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(dialog.open){closeDialog({focusTarget:input});return;}input.focus();input.select();}
+  if(e.key==='Escape'&&!dialog.open){if(!$('#settings').hidden)toggleSettings(false);else if(currentQuery){input.value='';transitionTools();}}
 });
 function updatePause(){
   $('#pause').setAttribute('aria-pressed',String(state.paused));
@@ -116,7 +149,8 @@ function report(stats){
 renderTools();updatePause();updateNight();
 try{
   const {createWorld}=await import('./world.js');
-  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,onStats:report});
+  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report});
+  world.setBiome(state.biome);
   iconURLs=world.icons;
   renderTools();
   $('#render-status').textContent=reduced.matches?'已依系統偏好暫停背景，可手動播放。':'';
