@@ -98,31 +98,38 @@ export async function createWorld(container,options={}){
   box(ufo,0,.27,0,.8,.42,.7,domeMat,false);box(ufo,0,.51,0,.42,.12,.4,domeMat,false);
   const ufoLights=new THREE.MeshBasicMaterial({color:'#f2df99',fog:false,toneMapped:false});
   for(let i=0;i<6;i++){const a=i/6*Math.PI*2;box(ufo,Math.cos(a)*.84,-.12,Math.sin(a)*.84,.16,.1,.16,ufoLights,false);}
-  let nextUfoAt=12,ufoFlight;
+  let nextUfoAt=12,ufoFlight,ufoRoute=0;
+  const flightPosition=new THREE.Vector3(),flightTangent=new THREE.Vector3();
+  function createUfoFlight(){
+    const variant=ufoRoute++%3,direction=variant===1?-1:1,points=[];
+    const radius=4.8+random()*1.2,turns=variant===2?1.5:2;
+    points.push(new THREE.Vector3(65*direction,8,2),new THREE.Vector3(18*direction,4,1));
+    for(let i=0;i<=24;i++){
+      const angle=i/24*Math.PI*2*turns;
+      points.push(new THREE.Vector3(direction*radius*Math.cos(angle),
+        (variant===1?2.5*Math.sin(angle*2):2.4*Math.sin(angle)),
+        3*Math.sin(angle)+(variant===2?i/24*3:0)));
+    }
+    const end=points.at(-1),exit=variant===2?1:-1;
+    points.push(new THREE.Vector3(end.x+exit*direction*16,4,-3),new THREE.Vector3(exit*direction*110,10,-10));
+    const path=new THREE.CatmullRomCurve3(points,false,'centripetal');
+    path.arcLengthDivisions=1000;path.updateArcLengths();
+    return {start:elapsed,duration:24+random()*4,path};
+  }
   function animateUfo(){
     if(!night||matchMedia('(prefers-reduced-motion: reduce)').matches){ufo.visible=false;return;}
-    if(!ufoFlight&&elapsed>=nextUfoAt)ufoFlight={start:elapsed,duration:20};
+    if(!ufoFlight&&elapsed>=nextUfoAt){ufoFlight=createUfoFlight();ufo.rotation.set(.08,0,0);}
     if(!ufoFlight)return;
     const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
     if(t>=1){ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+45+random()*45;return;}
     ufo.visible=true;
-    const orbitStart=.23,orbitEnd=.76;
-    let x,y,z,bank;
-    if(t<orbitStart){
-      const p=t/orbitStart,e=1-Math.pow(1-p,3);
-      x=THREE.MathUtils.lerp(48,5,e);y=THREE.MathUtils.lerp(5,0,e)+Math.sin(p*Math.PI)*2;
-      z=THREE.MathUtils.lerp(3,0,e);bank=-.2*Math.sin(p*Math.PI);
-    }else if(t<orbitEnd){
-      const p=(t-orbitStart)/(orbitEnd-orbitStart),angle=p*Math.PI*4;
-      x=5*Math.cos(angle);y=2.25*Math.sin(angle);
-      z=3.2*Math.sin(angle);bank=-.22*Math.cos(angle);
-    }else{
-      const p=(t-orbitEnd)/(1-orbitEnd),e=p*p;
-      x=THREE.MathUtils.lerp(5,-95,e);y=Math.sin(p*Math.PI)*5-p*2;
-      z=THREE.MathUtils.lerp(0,-8,e);bank=.3*Math.sin(p*Math.PI);
-    }
-    ufo.position.set(moon.position.x+x,moon.position.y+y,moon.position.z+z);
-    ufo.rotation.set(.08+Math.sin(elapsed)*.05,elapsed*.4,bank);
+    ufoFlight.path.getPointAt(t,flightPosition);
+    ufoFlight.path.getTangentAt(t,flightTangent);
+    ufo.position.copy(moon.position).add(flightPosition);
+    // A single arc-length parameter keeps the entry, loops and departure continuous.
+    const bank=THREE.MathUtils.clamp(flightTangent.y*.35,-.28,.28);
+    ufo.rotation.z=THREE.MathUtils.damp(ufo.rotation.z,bank,4,Math.min(.05,elapsed-(ufoFlight.last??elapsed)));
+    ufo.rotation.x=.08+Math.sin(t*Math.PI*4)*.035;ufoFlight.last=elapsed;
   }
   // The shoreline, sloping beach and displaced water share one world-space frame.
   const coastUniforms={coastOrigin:{value:new THREE.Vector2()},coastTangent:{value:new THREE.Vector2(1,0)},coastNormal:{value:new THREE.Vector2(0,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
@@ -409,20 +416,26 @@ export async function createWorld(container,options={}){
   }
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
   // A billowing bank travels toward and then behind the running dinosaur.
-  const mistCanvas=document.createElement('canvas');mistCanvas.width=128;mistCanvas.height=128;
-  const mistContext=mistCanvas.getContext('2d');
-  for(const [x,y,r] of [[49,62,48],[79,57,42],[67,81,39]]){
-    const gradient=mistContext.createRadialGradient(x,y,0,x,y,r);
-    gradient.addColorStop(0,'rgba(255,255,255,.65)');gradient.addColorStop(.45,'rgba(255,255,255,.36)');gradient.addColorStop(1,'rgba(255,255,255,0)');
-    mistContext.fillStyle=gradient;mistContext.fillRect(0,0,128,128);
-  }
-  const mistTexture=new THREE.CanvasTexture(mistCanvas);
-  const mistMaterial=new THREE.SpriteMaterial({map:mistTexture,color:'#dbe8ed',transparent:true,opacity:0,depthWrite:false,depthTest:false,fog:false,toneMapped:false});
+  const mistUniforms={tint:{value:new THREE.Color('#dbe8ed')},opacity:{value:0},age:{value:0}};
+  const mistMaterial=new THREE.ShaderMaterial({uniforms:mistUniforms,transparent:true,depthWrite:false,depthTest:true,side:THREE.DoubleSide,toneMapped:false,
+    vertexShader:`varying vec2 uvMist;varying vec3 worldMist;
+      void main(){uvMist=uv;vec4 p=modelMatrix*vec4(position,1.);worldMist=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}`,
+    fragmentShader:`uniform vec3 tint;uniform float opacity,age;varying vec2 uvMist;varying vec3 worldMist;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+      void main(){
+        float n=noise(worldMist.xz*.19+vec2(age*.12,worldMist.y*.24));
+        float billow=.67+n*.2;
+        float top=1.-smoothstep(billow-.26,billow,uvMist.y);
+        float sides=smoothstep(0.,.12,uvMist.x)*(1.-smoothstep(.88,1.,uvMist.x));
+        float bottom=smoothstep(0.,.1,uvMist.y);
+        float detail=.68+.32*noise(worldMist.xy*.5+vec2(age*.09,0.));
+        gl_FragColor=vec4(tint,opacity*top*sides*bottom*detail);
+      }`});
   const mistBank=new THREE.Group();mistBank.rotation.y=Math.PI/4;mistBank.visible=false;scene.add(mistBank);
-  for(let i=0;i<24;i++){
-    const cloud=new THREE.Sprite(mistMaterial);cloud.renderOrder=10;
-    cloud.position.set((i%8-3.5)*3.5,.8+Math.floor(i/8)*2.8,Math.sin(i*2.1)*2.8);
-    cloud.scale.set(11+(i%3)*2,7+(i%4),1);mistBank.add(cloud);
+  for(let i=0;i<9;i++){
+    const cloud=new THREE.Mesh(new THREE.PlaneGeometry(100,18),mistMaterial);
+    cloud.position.set(0,6,i*1.6-6.4);mistBank.add(cloud);
   }
   let scenerySnapshot,sceneTransition,pendingBiome;
   function beginSceneryTransition(){
@@ -448,7 +461,7 @@ export async function createWorld(container,options={}){
     }
     if(b===biome)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){commitBiome(b);render();return;}
-    sceneTransition={to:b,phase:'out',time:0,skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
+    sceneTransition={to:b,phase:'out',time:0,age:0,skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
     mistBank.visible=true;
     container.dataset.transition='entering-mist';
     requestTick();
@@ -471,17 +484,17 @@ export async function createWorld(container,options={}){
   function animateSceneTransition(delta){
     if(!sceneTransition)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){finishSceneTransition();return;}
-    const transition=sceneTransition;transition.time+=delta;
-    const incoming=transition.phase==='in',duration=1.85;
+    const transition=sceneTransition;transition.time+=delta;transition.age+=delta;
+    const incoming=transition.phase==='in',duration=incoming?2.2:2.6;
     const p=Math.min(1,transition.time/duration),ease=p*p*(3-2*p);
-    const veil=incoming?1-THREE.MathUtils.smoothstep(p,.18,1):THREE.MathUtils.smoothstep(p,.2,.88);
-    const travel=incoming?ease*18:-18+ease*18;
+    const veil=incoming?1-THREE.MathUtils.smoothstep(p,.08,.7):THREE.MathUtils.smoothstep(p,.76,1);
+    const travel=incoming?4+ease*30:-46+ease*50;
     mistBank.position.set(anchorPoint.x+Math.sin(Math.PI/4)*travel,0,anchorPoint.z+Math.cos(Math.PI/4)*travel);
-    mistBank.children.forEach((cloud,i)=>{cloud.position.y=.8+Math.floor(i/8)*2.8+Math.sin(transition.time*.6+i)*.25;});
-    mistMaterial.opacity=(incoming?1-ease:ease)*.55;
+    mistUniforms.age.value=transition.age;
+    mistUniforms.opacity.value=(incoming?1-THREE.MathUtils.smoothstep(p,.25,1):THREE.MathUtils.smoothstep(p,0,.2))*.46;
     scene.fog.near=THREE.MathUtils.lerp(38,0,veil);scene.fog.far=THREE.MathUtils.lerp(115,9,veil);
     scene.background.copy(transition.skyFrom).lerp(transition.skyTo,incoming?.5+ease*.5:ease*.5);scene.fog.color.copy(scene.background);
-    mistMaterial.color.copy(scene.fog.color).lerp(new THREE.Color(night?'#71879d':'#f7faf7'),night?.12:.35);
+    mistUniforms.tint.value.copy(scene.fog.color).lerp(new THREE.Color(night?'#71879d':'#f7faf7'),night?.45:.65);
     if(p<1)return;
     if(!incoming){
       commitBiome(transition.to);
@@ -490,14 +503,14 @@ export async function createWorld(container,options={}){
       scene.fog.near=0;scene.fog.far=9;
       container.dataset.transition='leaving-mist';
     }else{
-      sceneTransition=undefined;mistBank.visible=false;mistMaterial.opacity=0;scene.fog.near=38;scene.fog.far=115;updatePalette();delete container.dataset.transition;
+      sceneTransition=undefined;mistBank.visible=false;mistUniforms.opacity.value=0;scene.fog.near=38;scene.fog.far=115;updatePalette();delete container.dataset.transition;
       const next=pendingBiome;pendingBiome=undefined;if(next&&next!==biome)setBiome(next);
     }
   }
   function finishSceneTransition(){
     if(!sceneTransition)return;
     const next=pendingBiome||sceneTransition.to;
-    sceneTransition=undefined;pendingBiome=undefined;mistBank.visible=false;mistMaterial.opacity=0;
+    sceneTransition=undefined;pendingBiome=undefined;mistBank.visible=false;mistUniforms.opacity.value=0;
     commitBiome(next);scene.fog.near=38;scene.fog.far=115;delete container.dataset.transition;
   }
   function alignCoastMotion(){
