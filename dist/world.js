@@ -91,6 +91,24 @@ export async function createWorld(container,options={}){
   for(let i=0;i<85;i++)starPositions.push((random()-.5)*150,12+random()*42,-60-random()*45);
   const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
   nightSky.add(new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#fff5df',size:.24,sizeAttenuation:true,fog:false,toneMapped:false})));
+  const ufo=new THREE.Group();nightSky.add(ufo);ufo.visible=false;
+  const saucerMat=new THREE.MeshStandardMaterial({color:'#a7bfcd',metalness:.35,roughness:.32,fog:false});
+  const domeMat=new THREE.MeshStandardMaterial({color:'#6dcac7',emissive:'#317a82',emissiveIntensity:.35,roughness:.3,fog:false});
+  const saucer=new THREE.Mesh(new THREE.CylinderGeometry(.7,1.2,.22,8),saucerMat);ufo.add(saucer);
+  box(ufo,0,.27,0,.8,.42,.7,domeMat,false);box(ufo,0,.51,0,.42,.12,.4,domeMat,false);
+  const ufoLights=new THREE.MeshBasicMaterial({color:'#f2df99',fog:false,toneMapped:false});
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2;box(ufo,Math.cos(a)*.84,-.12,Math.sin(a)*.84,.16,.1,.16,ufoLights,false);}
+  let nextUfoAt=12,ufoFlight;
+  function animateUfo(){
+    if(!night||matchMedia('(prefers-reduced-motion: reduce)').matches){ufo.visible=false;return;}
+    if(!ufoFlight&&elapsed>=nextUfoAt)ufoFlight={start:elapsed,duration:10};
+    if(!ufoFlight)return;
+    const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
+    if(t>=1){ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+45+random()*45;return;}
+    ufo.visible=true;
+    ufo.position.set(moon.position.x+40-t*125,moon.position.y+1.2+Math.sin(t*Math.PI*2)*.45,moon.position.z+2);
+    ufo.rotation.set(.08,elapsed*.35,Math.sin(t*6.28)*.1);
+  }
   // The shoreline, sloping beach and displaced water share one world-space frame.
   const coastUniforms={coastOrigin:{value:new THREE.Vector2()},coastTangent:{value:new THREE.Vector2(1,0)},coastNormal:{value:new THREE.Vector2(0,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
   const coastGLSL=`
@@ -286,6 +304,7 @@ export async function createWorld(container,options={}){
   const dinoAnchor=new THREE.Group();scene.add(dinoAnchor);
   const dino=new THREE.Group();dino.rotation.y=Math.PI/4;dinoAnchor.add(dino);
   const torso=new THREE.Group();dino.add(torso);
+  const eyes=[];
   box(torso,0,1.6,.15,.95,1.35,1.17,dark);
   box(torso,0,2.15,-.25,.82,1.15,.77,darkSide);
   box(torso,0,2.92,-.76,1.18,.92,1.38,dark);
@@ -293,13 +312,14 @@ export async function createWorld(container,options={}){
   box(torso,0,2.35,-1.12,.93,.20,1.06,darkSide);
   // A front eye pair and contrasting snout make the direction legible from the portal camera.
   for(const side of [-1,1]){
-    box(torso,side*.597,3.07,-.7,.025,.29,.3,eyeWhite,false);
-    box(torso,side*.615,3.08,-.77,.025,.14,.14,eyeBlack,false);
+    eyes.push(box(torso,side*.597,3.07,-.7,.025,.29,.3,eyeWhite,false));
+    eyes.push(box(torso,side*.615,3.08,-.77,.025,.14,.14,eyeBlack,false));
     box(torso,side*.56,2.62,-1.4,.025,.075,.19,eyeBlack,false);
   }
   for(let i=0;i<3;i++)box(torso,0,2.48,-1.37+i*.19,.95,.07,.085,eyeWhite,false);
   // Small inset panels, nostrils, belly plates and toe claws add construction detail.
   const belly=new THREE.MeshStandardMaterial({color:'#9aab9c',roughness:.46});
+  for(const material of [dark,darkSide,eyeWhite,eyeBlack,belly])material.fog=false;
   for(let i=0;i<4;i++)box(torso,0,1.3+i*.22,-.453,.58,.18,.035,belly);
   for(const side of [-1,1]){
     box(torso,side*.584,2.83,-1.3,.018,.08,.11,eyeBlack,false);
@@ -320,6 +340,22 @@ export async function createWorld(container,options={}){
   for(let i=0;i<4;i++)backStuds.push([0,2.37,.05+i*.24,.75,1,.75]);
   batch(torso,cylinder,darkSide,backStuds,true);
   for(const x of [-.32,.32]){const stud=new THREE.Mesh(cylinder,darkSide);stud.position.set(x,3.43,-.75);torso.add(stud);}
+  const head=new THREE.Group();head.position.set(0,2.7,-.9);torso.add(head);
+  for(const part of [...torso.children])if(part.isMesh&&part.position.y>=2.35&&part.position.z<-.4)head.attach(part);
+  const eyeHeights=eyes.map(eye=>eye.scale.y);
+  const pointer=new THREE.Vector2(-10000,-10000),headScreen=new THREE.Vector3();
+  let curiosity=0,reactionStarted=-100;
+  function headDistance(event){
+    head.getWorldPosition(headScreen);headScreen.project(camera);
+    const rect=container.getBoundingClientRect();
+    return Math.hypot(event.clientX-(rect.left+(headScreen.x+1)*rect.width/2),event.clientY-(rect.top+(1-headScreen.y)*rect.height/2));
+  }
+  window.addEventListener('pointermove',event=>{if(event.pointerType==='mouse')pointer.set(event.clientX,event.clientY);});
+  window.addEventListener('pointerout',event=>{if(!event.relatedTarget)pointer.set(-10000,-10000);});
+  window.addEventListener('pointerdown',event=>{
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches||event.target.closest('button,a,input,select,[role="option"]'))return;
+    if(headDistance(event)<110)reactionStarted=elapsed;
+  });
   // Subtle grounding shadow also survives the lightweight, shadow-map-free mode.
   const shadowCanvas=document.createElement('canvas');shadowCanvas.width=64;shadowCanvas.height=64;
   const ctx=shadowCanvas.getContext('2d');const gradient=ctx.createRadialGradient(32,32,3,32,32,30);gradient.addColorStop(0,'rgba(50,55,43,.3)');gradient.addColorStop(1,'rgba(50,55,43,0)');ctx.fillStyle=gradient;ctx.fillRect(0,0,64,64);
@@ -332,6 +368,7 @@ export async function createWorld(container,options={}){
   let w=1,h=1;
   const raycaster=new THREE.Raycaster();const groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),.3);const anchorPoint=new THREE.Vector3();
   function resize(){
+    finishSceneTransition();
     w=container.clientWidth;h=container.clientHeight;
     camera.aspect=w/h;camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
@@ -356,7 +393,7 @@ export async function createWorld(container,options={}){
     renderer.shadowMap.needsUpdate=true;resize();
   }
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
-  let scenerySnapshot;
+  let scenerySnapshot,sceneTransition,pendingBiome;
   function beginSceneryTransition(){
     if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
     render();
@@ -373,16 +410,94 @@ export async function createWorld(container,options={}){
     animation.finished.then(()=>{snapshot.remove();if(scenerySnapshot===snapshot)scenerySnapshot=undefined;},()=>{});
   }
   function setBiome(b){
+    if(sceneTransition){pendingBiome=b;return;}
     if(b===biome)return;
-    beginSceneryTransition();
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){commitBiome(b);render();return;}
+    sceneTransition={to:b,phase:'out',time:0,records:assemblyRecords(),skyFrom:scene.background.clone(),skyTo:new THREE.Color(night?'#101c35':palettes[b].sky)};
+    container.dataset.transition='disassembling';
+    requestTick();
+  }
+  function commitBiome(b){
     biome=b;targetBiome=b;
     mix=b==='desert'?1:0;
     updatePalette();
     alignCoastMotion();
     layoutCoastProps();
-    if(paused)render();else requestTick();
   }
-  function setNight(value){if(night===value)return;beginSceneryTransition();night=value;updatePalette();render();}
+  function setNight(value){
+    if(night===value)return;
+    if(!sceneTransition)beginSceneryTransition();
+    night=value;ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+10+random()*8;
+    updatePalette();
+    if(sceneTransition){sceneTransition.skyFrom.copy(scene.background);sceneTransition.skyTo.set(night?'#101c35':palettes[sceneTransition.to].sky);}
+    render();
+  }
+  function assemblyRecords(){
+    const meshes=[],groups=[];
+    for(const chunk of chunks){
+      for(const object of chunk.group.children){
+        if(object.isInstancedMesh)meshes.push({mesh:object,base:object.instanceMatrix.array.slice()});
+        else if(object.visible)for(const group of object.children)if(group.visible)groups.push({group,y:group.position.y,scale:group.scale.clone(),rotation:group.rotation.z});
+      }
+    }
+    return {meshes,groups};
+  }
+  function assemblyAmount(p,seed,incoming){
+    const delay=(Math.sin(seed*1.71)*.5+.5)*.22;
+    const t=THREE.MathUtils.clamp((p-delay)/.78,0,1),smooth=t*t*(3-2*t);
+    return incoming?1-smooth:smooth;
+  }
+  function animateAssembly(records,p,incoming){
+    for(const {mesh,base} of records.meshes){
+      const array=mesh.instanceMatrix.array;array.set(base);
+      for(let i=0;i<mesh.count;i++){
+        const offset=i*16;if(Math.abs(base[offset])+Math.abs(base[offset+5])+Math.abs(base[offset+10])<.00001)continue;
+        const a=assemblyAmount(p,base[offset+12]+i*.13,incoming),scale=1-a;
+        for(let j=0;j<12;j++)array[offset+j]=base[offset+j]*scale;
+        array[offset+13]=base[offset+13]+a*(3.2+Math.sin(i)*.6);
+      }
+      mesh.instanceMatrix.needsUpdate=true;
+    }
+    records.groups.forEach(({group,y,scale,rotation},i)=>{
+      const a=assemblyAmount(p,i*1.3,incoming);
+      group.position.y=y+a*5;group.scale.copy(scale).multiplyScalar(1-a);group.rotation.z=rotation+a*.18*Math.sin(i*2);
+    });
+  }
+  function resetAssembly(records){
+    records.meshes.forEach(({mesh,base})=>{mesh.instanceMatrix.array.set(base);mesh.instanceMatrix.needsUpdate=true;});
+    records.groups.forEach(({group,y,scale,rotation})=>{group.position.y=y;group.scale.copy(scale);group.rotation.z=rotation;});
+  }
+  function animateSceneTransition(delta){
+    if(!sceneTransition)return;
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){finishSceneTransition();return;}
+    const transition=sceneTransition;transition.time+=delta;
+    const incoming=transition.phase==='in',duration=incoming?1.45:1.1;
+    const p=Math.min(1,transition.time/duration),ease=p*p*(3-2*p);
+    const veil=incoming?1-THREE.MathUtils.smoothstep(p,0,.44):THREE.MathUtils.smoothstep(p,.62,1);
+    animateAssembly(transition.records,p,incoming);
+    sea.position.y=-veil*.9;
+    scene.fog.near=THREE.MathUtils.lerp(38,2,veil);scene.fog.far=THREE.MathUtils.lerp(115,13,veil);
+    scene.background.copy(transition.skyFrom).lerp(transition.skyTo,incoming?.5+ease*.5:ease*.5);scene.fog.color.copy(scene.background);
+    if(p<1)return;
+    resetAssembly(transition.records);
+    if(!incoming){
+      commitBiome(transition.to);
+      scene.background.copy(transition.skyFrom).lerp(transition.skyTo,.5);scene.fog.color.copy(scene.background);
+      transition.phase='in';transition.time=0;transition.records=assemblyRecords();
+      animateAssembly(transition.records,0,true);
+      scene.fog.near=2;scene.fog.far=13;
+      container.dataset.transition='assembling';
+    }else{
+      sceneTransition=undefined;sea.position.y=0;scene.fog.near=38;scene.fog.far=115;updatePalette();delete container.dataset.transition;
+      const next=pendingBiome;pendingBiome=undefined;if(next&&next!==biome)setBiome(next);
+    }
+  }
+  function finishSceneTransition(){
+    if(!sceneTransition)return;
+    const next=pendingBiome||sceneTransition.to;
+    resetAssembly(sceneTransition.records);sceneTransition=undefined;pendingBiome=undefined;
+    commitBiome(next);sea.position.y=0;scene.fog.near=38;scene.fog.far=115;delete container.dataset.transition;
+  }
   function alignCoastMotion(){
     // Keep the established heading and travel direction identical in every biome.
     belt.rotation.y=Math.PI/4;dino.rotation.y=Math.PI/4;
@@ -424,6 +539,7 @@ export async function createWorld(container,options={}){
   }
   const colorA=new THREE.Color(),colorB=new THREE.Color();
   function updatePalette(){
+    container.dataset.scene=biome;
     updateWaterReflection();
     for(const [key,mat] of Object.entries(materials)){
       if(biome==='coast')mat.color.set(palettes.coast[key]);
@@ -458,13 +574,28 @@ export async function createWorld(container,options={}){
     coastUniforms.coastTime.value=elapsed;
     if(biome==='coast')animateWater();
     const speed=2.65;
-    for(const {group} of chunks){group.position.z+=delta*speed;if(group.position.z>60)group.position.z-=chunkCount*chunkLength;}
+    if(!sceneTransition)for(const {group} of chunks){group.position.z+=delta*speed;if(group.position.z>60)group.position.z-=chunkCount*chunkLength;}
     const phase=elapsed*8.8;
     torso.position.y=Math.abs(Math.sin(phase))*.07;
     torso.rotation.x=Math.sin(phase*2)*.014;
     legs[0].rotation.x=Math.sin(phase)*.67;legs[1].rotation.x=-Math.sin(phase)*.67;
     arms[0].rotation.x=-Math.sin(phase)*.2;arms[1].rotation.x=Math.sin(phase)*.2;
     tail.rotation.y=Math.sin(phase*.5)*.09;
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      head.getWorldPosition(headScreen);headScreen.project(camera);
+      const rect=container.getBoundingClientRect(),centerX=rect.left+(headScreen.x+1)*rect.width/2,centerY=rect.top+(1-headScreen.y)*rect.height/2;
+      const distance=Math.hypot(pointer.x-centerX,pointer.y-centerY);
+      curiosity=THREE.MathUtils.damp(curiosity,distance<150?1-distance/190:0,6,delta);
+      head.rotation.y=THREE.MathUtils.clamp((pointer.x-centerX)/140,-1,1)*curiosity*.38;
+      head.rotation.z=-curiosity*.1;head.rotation.x=-curiosity*.12-(sceneTransition?.12:0);
+      torso.rotation.z=curiosity*.025;
+      tail.rotation.y+=Math.sin(elapsed*11)*curiosity*.12;
+      const hop=elapsed-reactionStarted;dino.position.y=hop>=0&&hop<.9?Math.sin(hop/.9*Math.PI)*.28:0;
+      const blink=elapsed%5.2,eyeScale=blink<.18?Math.max(.08,Math.abs(blink-.09)/.09):1;
+      eyes.forEach((eye,i)=>eye.scale.y=eyeHeights[i]*eyeScale);
+    }
+    animateUfo();
+    if(ufo.visible)container.dataset.skyEvent='ufo';else delete container.dataset.skyEvent;
     cloudGroup.position.x=Math.sin(elapsed*.025)*2;
     dust.forEach((p,i)=>{const t=((elapsed*1.3+i/6)%1);p.position.set((i%2-.5)*.75,.08+t*.38,.9+t*2.5);p.scale.setScalar(.08+(1-t)*.14);p.rotation.set(t*2,t*3,t);p.visible=t<.9;});
     if(targetBiome!=='coast'&&biome!=='coast'){
@@ -475,8 +606,8 @@ export async function createWorld(container,options={}){
   let last=performance.now(),lastReport=last,frames=0,raf=0;
   function render(){renderer.render(scene,camera);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000;options.onStats?.({fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval});lastReport=now;frames=0;}}
-  function tick(now){raf=0;if(document.hidden||paused)return;const delta=Math.min((now-last)/1000,.05);last=now;animate(delta);render();frames++;report();requestTick();}
-  function requestTick(){if(!raf&&!paused&&!document.hidden)raf=requestAnimationFrame(tick);}
+  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition))return;const delta=Math.min((now-last)/1000,.05);last=now;if(!paused)animate(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
+  function requestTick(){if(!raf&&(!paused||sceneTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
   window.addEventListener('resize',resize);
   document.addEventListener('visibilitychange',()=>{last=performance.now();lastReport=last;frames=0;if(document.hidden){cancelAnimationFrame(raf);raf=0;}else{render();requestTick();}});
   renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(raf);raf=0;document.querySelector('#render-status').textContent='3D 畫面暫時中斷；工具入口仍可使用。';});

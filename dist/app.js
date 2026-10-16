@@ -8,7 +8,9 @@ const dialog = $('#tool-dialog');
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 let savedNight=false;
 try{savedNight=localStorage.getItem('tool-portal-night')==='true';}catch{}
-const state = { paused: reduced.matches, biome: 'grass', quality: 'balanced', auto: false, night:savedNight };
+let savedRotation=30;
+try{const value=Number(localStorage.getItem('tool-portal-rotation'));if(value>=10&&value<=120)savedRotation=Math.round(value/5)*5;}catch{}
+const state = { paused: reduced.matches, biome: 'grass', quality: 'balanced', auto: false, rotation:savedRotation, night:savedNight };
 let world;
 let iconURLs = {};
 let currentQuery = '';
@@ -137,6 +139,7 @@ $('#night').addEventListener('click',()=>{
 });
 reduced.addEventListener('change',e=>{if(e.matches){state.paused=true;updatePause();}});
 function setBiome(b){
+  lastAuto=0;
   state.biome=b;
   document.querySelectorAll('[data-biome]').forEach(btn=>{const active=btn.dataset.biome===b;btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active));});
   world?.setBiome(b);
@@ -192,10 +195,22 @@ $('#quality').addEventListener('keydown',e=>{
     if(i>=0){e.preventDefault();if(!open)openQuality();highlightQuality(i);}
   }
 });
-$('#auto-biome').addEventListener('change',e=>{state.auto=e.target.checked;});
 let lastAuto=0;
+function updateRotation(){
+  $('#rotation-controls').hidden=!state.auto;
+  $('#rotation-speed').value=state.rotation;
+  $('#rotation-label').textContent=`每 ${state.rotation} 秒`;
+  $('#rotation-speed').setAttribute('aria-valuetext',`每 ${state.rotation} 秒切換場景`);
+  $('#rotation-speed').style.setProperty('--range-progress',`${(state.rotation-10)/110*100}%`);
+}
+$('#auto-biome').addEventListener('change',e=>{state.auto=e.target.checked;lastAuto=0;updateRotation();});
+$('#rotation-speed').addEventListener('input',e=>{
+  state.rotation=Number(e.target.value);lastAuto=0;updateRotation();
+  try{localStorage.setItem('tool-portal-rotation',String(state.rotation));}catch{}
+});
+updateRotation();
 function report(stats){
-  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=30){const order=['grass','desert','coast'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
+  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=state.rotation){const order=['grass','desert','coast'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
 }
 renderTools();updatePause();updateNight();
 try{
