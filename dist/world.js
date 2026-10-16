@@ -108,6 +108,7 @@ export async function createWorld(container,options={}){
     shader.fragmentShader=coastGLSL+shader.fragmentShader;
   }
   for(const mat of Object.values(materials)){
+    if(mat!==materials.ground)continue;
     mat.onBeforeCompile=shader=>{
       coastShader(shader);
       shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>',
@@ -243,7 +244,7 @@ export async function createWorld(container,options={}){
     shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>',
       '#include <clipping_planes_fragment>\nif(coastEnabled>.5 && coastDistance()>0.0) discard;');
   };
-  scene.traverse(object=>{if(object.isMesh&&Object.values(materials).includes(object.material))object.customDepthMaterial=coastDepth;});
+  scene.traverse(object=>{if(object.isMesh&&object.material===materials.ground)object.customDepthMaterial=coastDepth;});
   // Original 45 degree heading, toward the upper-left of the scene.
   const dinoAnchor=new THREE.Group();scene.add(dinoAnchor);
   const dino=new THREE.Group();dino.rotation.y=Math.PI/4;dinoAnchor.add(dino);
@@ -307,6 +308,7 @@ export async function createWorld(container,options={}){
     // Align the reserved local-X lane with the actual responsive dinosaur anchor.
     belt.position.set(anchorPoint.x,0,anchorPoint.z);
     alignCoastMotion();
+    layoutCoastProps();
     dinoAnchor.scale.setScalar(Math.min(.95,w/h*.62));
     render();
   }
@@ -322,12 +324,48 @@ export async function createWorld(container,options={}){
     if(b==='coast'||leftCoast)mix=b==='desert'?1:0;
     updatePalette();
     alignCoastMotion();
+    layoutCoastProps();
     if(paused)render();else requestTick();
   }
   function setNight(value){night=value;updatePalette();render();}
   function alignCoastMotion(){
     // Keep the established heading and travel direction identical in every biome.
     belt.rotation.y=Math.PI/4;dino.rotation.y=Math.PI/4;
+  }
+  function layoutCoastProps(){
+    if(w<2||h<2)return;
+    const origin=coastUniforms.coastOrigin.value,normal=coastUniforms.coastNormal.value;
+    const angle=belt.rotation.y,cos=Math.cos(angle),sin=Math.sin(angle);
+    // Keep a whole object's complete looping trajectory on dry sand. Do not reveal
+    // geometry by clipping fragments as it crosses the shore or the swash zone.
+    function safeTrajectory(x,z,radius){
+      for(const phase of [-75,60]){
+        const px=belt.position.x+x*cos+(z+phase)*sin;
+        const pz=belt.position.z-x*sin+(z+phase)*cos;
+        const side=(px-origin.x)*normal.x+(pz-origin.y)*normal.y;
+        // shoreCurve is bounded by .5; include radius and a dry-sand clearance.
+        if(side>-(radius+1.3))return false;
+      }
+      return true;
+    }
+    const matrix=new THREE.Matrix4(),hiddenMatrix=new THREE.Matrix4().makeScale(0,0,0);
+    for(const chunk of chunks){
+      for(const mesh of chunk.group.children){
+        if(!mesh.isInstancedMesh)continue;
+        const original=mesh.userData.landMatrices??=mesh.instanceMatrix.array.slice();
+        mesh.instanceMatrix.array.set(original);
+        if(biome==='coast'){
+          mesh.geometry.computeBoundingSphere();
+          for(let i=0;i<mesh.count;i++){
+            matrix.fromArray(original,i*16);const e=matrix.elements;
+            const scale=Math.max(Math.hypot(e[0],e[1],e[2]),Math.hypot(e[4],e[5],e[6]),Math.hypot(e[8],e[9],e[10]));
+            if(!safeTrajectory(e[12],e[14],mesh.geometry.boundingSphere.radius*scale))mesh.setMatrixAt(i,hiddenMatrix);
+          }
+        }
+        mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
+      }
+      for(const palm of chunk.palms.children)palm.visible=biome!=='coast'||safeTrajectory(palm.position.x,palm.position.z,1.9*palm.scale.x);
+    }
   }
   const colorA=new THREE.Color(),colorB=new THREE.Color();
   function updatePalette(){

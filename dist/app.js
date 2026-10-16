@@ -27,7 +27,7 @@ function renderTools() {
     const art=iconURLs[t.icon] ? Object.assign(document.createElement('img'),{src:iconURLs[t.icon],alt:'',className:'tool-art',width:120,height:120}) : Object.assign(document.createElement('span'),{textContent:fallbackIcons[t.icon],className:'tool-fallback'});
     art.setAttribute('aria-hidden','true');
     const title=Object.assign(document.createElement('span'),{textContent:t.title,className:'tool-name'});
-    const hint=Object.assign(document.createElement('span'),{textContent:t.url?'開啟工具':'查看範例',className:'tile-hint'});
+    const hint=Object.assign(document.createElement('span'),{textContent:t.url?'開啟工具':'工具資訊',className:'tile-hint'});
     const arrow=Object.assign(document.createElement('span'),{textContent:'↗',className:'tile-arrow'});arrow.setAttribute('aria-hidden','true');
     item.append(art,title,hint,arrow);
     if(!t.url){item.setAttribute('aria-haspopup','dialog');item.addEventListener('click',()=>showTool(t,item));}
@@ -36,11 +36,12 @@ function renderTools() {
   }));
   $('#empty').hidden=filtered.length>0;
   $('#result-label').textContent=q ? `找到 ${filtered.length} 個工具` : '選一個工具，開始吧';
+  $('#tool-count').textContent=`${filtered.length} 個工具`;
   $('#announcer').textContent=q ? `找到 ${filtered.length} 個工具` : '';
 }
 function openDialog(trigger){lastTrigger=trigger;dialog.showModal();}
 function showTool(t,trigger){
-  $('#dialog-kicker').textContent='範例工具 · 尚未串接';
+  $('#dialog-kicker').textContent='工具資訊';
   $('#dialog-title').textContent=t.title;
   $('#dialog-copy').textContent=t.description;
   $('#dialog-note').hidden=false;
@@ -53,11 +54,11 @@ $('.dialog-close').addEventListener('click',closeDialog);
 $('#dialog-done').addEventListener('click',closeDialog);
 dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)closeDialog();}});
 $('#help').addEventListener('click',()=>{
-  $('#dialog-kicker').textContent='PROTOTYPE · 使用說明';
+  $('#dialog-kicker').textContent='使用說明';
   $('#dialog-title').textContent='歡迎來到工具基地';
-  $('#dialog-copy').textContent='這是一個真正由 3D 場景與網頁元件組成的可操作原型。';
+  $('#dialog-copy').textContent='快速找到工作所需，讓每天的開始更輕快。';
   $('#dialog-note').hidden=true;
-  $('#demo-area').innerHTML='<ul><li>點選大方塊可查看範例工具說明。實際公司網址尚未設定。</li><li>按 Ctrl / ⌘ + K 快速搜尋，按 Esc 清除搜尋或關閉視窗。</li><li>下方可切換草原、沙漠；右上角可暫停背景。</li><li>設定中可切換畫質、開啟每 30 秒輪換環境，並查看即時效能。</li></ul>';
+  $('#demo-area').innerHTML='<ul><li>點選工具可開啟服務或查看工具資訊。</li><li>輸入關鍵字尋找工具；按 Enter 或 Google 搜尋網路資訊。</li><li>按 Ctrl / ⌘ + K 快速搜尋，按 Esc 清除搜尋或關閉視窗。</li><li>下方可切換草原、沙漠與海岸；右上角可切換日夜、暫停動畫或調整畫質。</li></ul>';
   $('#dialog-done').textContent='開始探索';openDialog($('#help'));
 });
 function searchGoogle(){
@@ -110,7 +111,6 @@ $('#quality').addEventListener('change',e=>{state.quality=e.target.value;world?.
 $('#auto-biome').addEventListener('change',e=>{state.auto=e.target.checked;});
 let lastAuto=0;
 function report(stats){
-  $('#diagnostics').replaceChildren(...Object.entries({'渲染':'Three.js / WebGL2','畫面更新':`${stats.fps} FPS`,'繪製呼叫':stats.calls,'三角形':stats.triangles.toLocaleString(),'動態':state.paused?'已暫停':document.hidden?'分頁暫停':'播放中'}).flatMap(([k,v])=>[Object.assign(document.createElement('dt'),{textContent:k}),Object.assign(document.createElement('dd'),{textContent:String(v)})]));
   if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=30){const order=['grass','desert','coast'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
 }
 renderTools();updatePause();updateNight();
@@ -119,7 +119,7 @@ try{
   world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,onStats:report});
   iconURLs=world.icons;
   renderTools();
-  $('#render-status').textContent=reduced.matches?'已依系統偏好暫停背景，可手動播放。':'3D 世界已就緒 · 恐龍準備出發';
+  $('#render-status').textContent=reduced.matches?'已依系統偏好暫停背景，可手動播放。':'';
   document.documentElement.dataset.world='ready';
 }catch(error){
   console.error('3D initialization failed:',error);
