@@ -83,6 +83,11 @@ export async function createWorld(container,options={}){
   const coastGLSL=`
     uniform vec2 coastSize;
     uniform float coastTime, coastEnabled, coastNight;
+    float coastHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float coastNoise(vec2 p){
+      vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+      return mix(mix(coastHash(i),coastHash(i+vec2(1,0)),f.x),mix(coastHash(i+vec2(0,1)),coastHash(i+vec2(1,1)),f.x),f.y);
+    }
     float coastDistance(){
       vec2 p=vec2(gl_FragCoord.x,coastSize.y-gl_FragCoord.y);
       float run=coastSize.y*.38;
@@ -106,23 +111,32 @@ export async function createWorld(container,options={}){
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       float scale=coastSize.y/884.0;
       float d=coastDistance()/scale;
-      float swash=4.0*sin(coastTime*1.35);
+      vec2 p=vec2(gl_FragCoord.x,coastSize.y-gl_FragCoord.y)/scale;
+      float t=coastTime;
+      float swell=sin(t*.8+p.x*.007)*.5+.5;
+      float shoreNoise=coastNoise(vec2(p.x*.025,t*.16));
+      float swash=8.0*swell+5.0*shoreNoise-5.0;
       if(d < -12.0) discard;
       vec3 sand=mix(vec3(.56,.42,.23),vec3(.15,.21,.25),coastNight);
-      vec3 shallow=mix(vec3(.22,.65,.65),vec3(.04,.19,.26),coastNight);
-      vec3 deep=mix(vec3(.07,.38,.53),vec3(.015,.07,.14),coastNight);
+      vec3 shallow=mix(vec3(.28,.66,.61),vec3(.04,.19,.26),coastNight);
+      vec3 deep=mix(vec3(.07,.36,.46),vec3(.015,.07,.14),coastNight);
       vec3 white=mix(vec3(.92,.98,.92),vec3(.49,.69,.74),coastNight);
       vec3 ocean=mix(shallow,deep,smoothstep(0.0,220.0,d));
-      float ripple=sin(d*.16+coastTime*1.5+gl_FragCoord.x*.012)*.025;
-      ocean+=ripple;
-      float wave=mod(d+coastTime*15.0+5.0*sin(gl_FragCoord.x*.017+coastTime*.6),48.0);
-      float crest=(1.0-smoothstep(1.0,5.0,wave))*smoothstep(8.0,25.0,d);
-      float edge=1.0-smoothstep(1.0,4.5,abs(d-swash));
-      ocean=mix(ocean,white,max(edge,crest*.82));
-      diffuseColor.rgb=mix(sand,ocean,smoothstep(swash-3.0,swash+1.0,d));
+      float broad=coastNoise(p*.018+vec2(-t*.08,t*.11));
+      float fine=coastNoise(p*.065+vec2(t*.12,t*.045));
+      ocean+=(broad-.5)*.055+(fine-.5)*.018;
+      // Broken foam collects at the swash, then thins into irregular cells as it retreats.
+      float edgeDistance=d-swash;
+      float cells=coastNoise(p*.11+vec2(t*.04,-t*.07));
+      float lace=smoothstep(.43,.71,cells);
+      float edge=(1.0-smoothstep(1.0,8.0,abs(edgeDistance)))*(.3+.7*lace);
+      float wash=(1.0-smoothstep(3.0,27.0,edgeDistance))*smoothstep(-2.0,3.0,edgeDistance);
+      float remnants=wash*lace*(.22+.34*swell);
+      ocean=mix(ocean,white,max(edge,remnants)*.8);
+      diffuseColor.rgb=mix(sand,ocean,smoothstep(swash-4.0,swash+1.0,d));
     `);
   };
-  waterMat.customProgramCacheKey=()=> 'curved-coast-water-v1';
+  waterMat.customProgramCacheKey=()=> 'curved-coast-water-v2';
   const sea=new THREE.Group();scene.add(sea);
   const shoreGeometry=new THREE.BufferGeometry();
   shoreGeometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(18),3));
@@ -271,17 +285,8 @@ export async function createWorld(container,options={}){
   }
   function setNight(value){night=value;updatePalette();render();}
   function alignCoastMotion(){
-    if(w<2||h<2)return;
-    let heading=Math.PI/4;
-    if(biome==='coast'){
-      // A ground-space 45 degree rotation is not a screen-space 45 degree heading.
-      // Raycast a parallel diagonal at the dinosaur's feet to match the coast's axis.
-      const origin=anchorPoint.clone().project(camera);
-      raycaster.setFromCamera(new THREE.Vector2(origin.x+80/w,origin.y-80/h),camera);
-      const next=raycaster.ray.intersectPlane(groundPlane,new THREE.Vector3());
-      if(next)heading=Math.atan2(next.x-anchorPoint.x,next.z-anchorPoint.z);
-    }
-    belt.rotation.y=heading;dino.rotation.y=heading;
+    // Keep the established heading and travel direction identical in every biome.
+    belt.rotation.y=Math.PI/4;dino.rotation.y=Math.PI/4;
   }
   const colorA=new THREE.Color(),colorB=new THREE.Color();
   function updatePalette(){
