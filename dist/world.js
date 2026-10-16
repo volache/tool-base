@@ -42,7 +42,7 @@ export async function createWorld(container,options={}){
   const eyeWhite=new THREE.MeshStandardMaterial({color:'#faf6df',roughness:.7});
   const eyeBlack=new THREE.MeshStandardMaterial({color:'#26343b',roughness:.7});
   const whiteMat=new THREE.MeshStandardMaterial({color:'#fff9e8',roughness:.92});
-  const waterMat=new THREE.MeshStandardMaterial({color:'#4dabc2',roughness:.28,metalness:.08,side:THREE.DoubleSide});
+  const waterMat=new THREE.MeshBasicMaterial({color:'#4dabc2',side:THREE.DoubleSide});
   const foamMat=new THREE.MeshStandardMaterial({color:'#e8fbf6',roughness:.72});
   const cube=new THREE.BoxGeometry(1,1,1);
   const brickProfile=new THREE.Shape();
@@ -78,16 +78,55 @@ export async function createWorld(container,options={}){
   for(let i=0;i<85;i++)starPositions.push((random()-.5)*150,12+random()*42,-60-random()*45);
   const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
   nightSky.add(new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#fff5df',size:.24,sizeAttenuation:true,fog:false,toneMapped:false})));
-  // Construct the coast from screen-space endpoints, then raycast onto real ground.
-  // This preserves a 45-degree screen diagonal across viewport sizes.
+  // Share the curved shoreline between water, foam and terrain masking.
+  const coastUniforms={coastSize:{value:new THREE.Vector2(1,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
+  const coastGLSL=`
+    uniform vec2 coastSize;
+    uniform float coastTime, coastEnabled, coastNight;
+    float coastDistance(){
+      vec2 p=vec2(gl_FragCoord.x,coastSize.y-gl_FragCoord.y);
+      float run=coastSize.y*.38;
+      float u=p.x/run;
+      float bend=coastSize.y*(.026*sin(u*6.28318)+.011*sin(u*13.0+.7));
+      return (p.y-p.x-coastSize.y*.62-bend)/1.41421;
+    }
+  `;
+  for(const mat of Object.values(materials)){
+    mat.onBeforeCompile=shader=>{
+      Object.assign(shader.uniforms,coastUniforms);
+      shader.fragmentShader=coastGLSL+shader.fragmentShader;
+      shader.fragmentShader=shader.fragmentShader.replace('#include <clipping_planes_fragment>',
+        '#include <clipping_planes_fragment>\nif(coastEnabled>.5 && coastDistance()>-12.0) discard;');
+    };
+    mat.customProgramCacheKey=()=> 'curved-coast-land-v1';
+  }
+  waterMat.onBeforeCompile=shader=>{
+    Object.assign(shader.uniforms,coastUniforms);
+    shader.fragmentShader=coastGLSL+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      float scale=coastSize.y/884.0;
+      float d=coastDistance()/scale;
+      float swash=4.0*sin(coastTime*1.35);
+      if(d < -12.0) discard;
+      vec3 sand=mix(vec3(.56,.42,.23),vec3(.15,.21,.25),coastNight);
+      vec3 shallow=mix(vec3(.22,.65,.65),vec3(.04,.19,.26),coastNight);
+      vec3 deep=mix(vec3(.07,.38,.53),vec3(.015,.07,.14),coastNight);
+      vec3 white=mix(vec3(.92,.98,.92),vec3(.49,.69,.74),coastNight);
+      vec3 ocean=mix(shallow,deep,smoothstep(0.0,220.0,d));
+      float ripple=sin(d*.16+coastTime*1.5+gl_FragCoord.x*.012)*.025;
+      ocean+=ripple;
+      float wave=mod(d+coastTime*15.0+5.0*sin(gl_FragCoord.x*.017+coastTime*.6),48.0);
+      float crest=(1.0-smoothstep(1.0,5.0,wave))*smoothstep(8.0,25.0,d);
+      float edge=1.0-smoothstep(1.0,4.5,abs(d-swash));
+      ocean=mix(ocean,white,max(edge,crest*.82));
+      diffuseColor.rgb=mix(sand,ocean,smoothstep(swash-3.0,swash+1.0,d));
+    `);
+  };
+  waterMat.customProgramCacheKey=()=> 'curved-coast-water-v1';
   const sea=new THREE.Group();scene.add(sea);
   const shoreGeometry=new THREE.BufferGeometry();
-  shoreGeometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(9),3));
+  shoreGeometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(18),3));
   const water=new THREE.Mesh(shoreGeometry,waterMat);water.receiveShadow=true;sea.add(water);
-  const foamGeometry=new THREE.BufferGeometry();
-  foamGeometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(18),3));
-  const foam=new THREE.Mesh(foamGeometry,foamMat);foam.material.side=THREE.DoubleSide;sea.add(foam);
-  const beachClip=new THREE.Plane();
   function layoutCoast(width,height){
     const waterPlane=new THREE.Plane(new THREE.Vector3(0,1,0),.285);
     const coastRay=new THREE.Raycaster();
@@ -95,19 +134,11 @@ export async function createWorld(container,options={}){
       coastRay.setFromCamera(new THREE.Vector2(x/width*2-1,1-y/height*2),camera);
       return coastRay.ray.intersectPlane(waterPlane,new THREE.Vector3());
     }
-    const startY=height*.64,run=height-startY;
-    const a=point(0,startY),b=point(run,height),c=point(0,height);
-    shoreGeometry.attributes.position.setXYZ(0,a.x,a.y,a.z);
-    shoreGeometry.attributes.position.setXYZ(1,b.x,b.y,b.z);
-    shoreGeometry.attributes.position.setXYZ(2,c.x,c.y,c.z);
+    renderer.getDrawingBufferSize(coastUniforms.coastSize.value);
+    const a=point(-2,height*.51),b=point(width+2,height*.51),c=point(width+2,height+2),d=point(-2,height+2);
+    [a,c,b,a,d,c].forEach((p,i)=>shoreGeometry.attributes.position.setXYZ(i,p.x,p.y,p.z));
     shoreGeometry.attributes.position.needsUpdate=true;
     shoreGeometry.computeVertexNormals();shoreGeometry.computeBoundingSphere();
-    const strip=[point(0,startY),point(run,height),point(run-8,height),point(0,startY),point(run-8,height),point(0,startY+8)];
-    strip.forEach((p,i)=>foamGeometry.attributes.position.setXYZ(i,p.x,p.y+.012,p.z));
-    foamGeometry.attributes.position.needsUpdate=true;
-    foamGeometry.computeVertexNormals();foamGeometry.computeBoundingSphere();
-    beachClip.setFromCoplanarPoints(a,b,a.clone().add(new THREE.Vector3(0,1,0)));
-    if(beachClip.distanceToPoint(c)>0)beachClip.negate();
   }
   // A rotated, endless belt. A reserved central lane keeps scenery from intersecting the dinosaur.
   const belt=new THREE.Group();belt.rotation.y=Math.PI/4;scene.add(belt);
@@ -210,15 +241,17 @@ export async function createWorld(container,options={}){
   function resize(){
     w=container.clientWidth;h=container.clientHeight;
     camera.aspect=w/h;camera.updateProjectionMatrix();
-    camera.updateMatrixWorld();layoutCoast(w,h);
+    camera.updateMatrixWorld();
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,quality==='high'?1.8:quality==='low'?1:1.35));
     renderer.setSize(w,h,false);
+    layoutCoast(w,h);
     const mobile=w<650;
     raycaster.setFromCamera(new THREE.Vector2(mobile?.58:.68,mobile?-.82:-.67),camera);
     raycaster.ray.intersectPlane(groundPlane,anchorPoint);
     dinoAnchor.position.copy(anchorPoint);dinoAnchor.position.y=-.3;
     // Align the reserved local-X lane with the actual responsive dinosaur anchor.
     belt.position.set(anchorPoint.x,0,anchorPoint.z);
+    alignCoastMotion();
     dinoAnchor.scale.setScalar(Math.min(.95,w/h*.62));
     render();
   }
@@ -233,9 +266,23 @@ export async function createWorld(container,options={}){
     const leftCoast=biome==='coast';biome=b;targetBiome=b;
     if(b==='coast'||leftCoast)mix=b==='desert'?1:0;
     updatePalette();
+    alignCoastMotion();
     if(paused)render();else requestTick();
   }
   function setNight(value){night=value;updatePalette();render();}
+  function alignCoastMotion(){
+    if(w<2||h<2)return;
+    let heading=Math.PI/4;
+    if(biome==='coast'){
+      // A ground-space 45 degree rotation is not a screen-space 45 degree heading.
+      // Raycast a parallel diagonal at the dinosaur's feet to match the coast's axis.
+      const origin=anchorPoint.clone().project(camera);
+      raycaster.setFromCamera(new THREE.Vector2(origin.x+80/w,origin.y-80/h),camera);
+      const next=raycaster.ray.intersectPlane(groundPlane,new THREE.Vector3());
+      if(next)heading=Math.atan2(next.x-anchorPoint.x,next.z-anchorPoint.z);
+    }
+    belt.rotation.y=heading;dino.rotation.y=heading;
+  }
   const colorA=new THREE.Color(),colorB=new THREE.Color();
   function updatePalette(){
     for(const [key,mat] of Object.entries(materials)){
@@ -246,11 +293,8 @@ export async function createWorld(container,options={}){
     else{colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);}
     nightSky.visible=night;cloudGroup.visible=!night;
     sea.visible=biome==='coast';
-    for(const mat of Object.values(materials)){
-      const clips=biome==='coast'?[beachClip]:[];
-      if((mat.clippingPlanes?.length||0)!==clips.length)mat.needsUpdate=true;
-      mat.clippingPlanes=clips;mat.clipShadows=true;
-    }
+    coastUniforms.coastEnabled.value=biome==='coast'?1:0;
+    coastUniforms.coastNight.value=night?1:0;
     if(night){
       scene.background.set('#101c35');scene.fog.color.set('#101c35');
       hemi.color.set('#a9c9ff');hemi.groundColor.set('#384252');hemi.intensity=1.35;
@@ -271,6 +315,7 @@ export async function createWorld(container,options={}){
   }
   function animate(delta){
     elapsed+=delta;
+    coastUniforms.coastTime.value=elapsed;
     const speed=2.65;
     for(const {group} of chunks){group.position.z+=delta*speed;if(group.position.z>60)group.position.z-=chunkCount*chunkLength;}
     const phase=elapsed*8.8;
