@@ -99,14 +99,20 @@ export async function createWorld(container,options={}){
   const ufoLights=new THREE.MeshBasicMaterial({color:'#f2df99',fog:false,toneMapped:false});
   for(let i=0;i<6;i++){const a=i/6*Math.PI*2;box(ufo,Math.cos(a)*.84,-.12,Math.sin(a)*.84,.16,.1,.16,ufoLights,false);}
   let nextUfoAt=12,ufoFlight,ufoRoute=0;
+  let customUfoCurve,ufoDuration=16,routePreview=false;
   const flightPosition=new THREE.Vector3(),flightTangent=new THREE.Vector3();
   function createUfoFlight(){
-    return {start:elapsed,duration:28+random()*4,variant:ufoRoute++%3,radius:5+random(),phase:random()*.4};
+    return {start:elapsed,duration:ufoDuration,variant:ufoRoute++%3,radius:5+random(),phase:random()*.4};
   }
   function sampleUfoFlight(flight,t,target){
     const {variant,radius,phase}=flight,direction=variant===1?-1:1;
     const entry=1-THREE.MathUtils.smootherstep(t,0,.24),exit=THREE.MathUtils.smootherstep(t,.76,1);
     const angle=t*Math.PI*4+phase;
+    if(customUfoCurve){
+      customUfoCurve.getPointAt((t*2)%1,target);
+      target.x+=70*entry-100*exit;target.y+=5*entry+6*exit;target.z-=8*exit;
+      return target;
+    }
     // Analytic motion is C2-continuous even at the entry/exit blend boundaries.
     // The orbit keeps moving while the off-screen approach offset eases away.
     target.set(direction*(radius*Math.cos(angle)+70*entry-100*exit),
@@ -119,16 +125,47 @@ export async function createWorld(container,options={}){
     if(!ufoFlight&&elapsed>=nextUfoAt){ufoFlight=createUfoFlight();ufo.rotation.set(.08,0,0);}
     if(!ufoFlight)return;
     const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
-    if(t>=1){ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+45+random()*45;return;}
+    if(t>=1){ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+(routePreview?1.2:45+random()*45);return;}
     ufo.visible=true;
     sampleUfoFlight(ufoFlight,t,flightPosition);
     sampleUfoFlight(ufoFlight,Math.min(1,t+.0001),flightTangent).sub(flightPosition).normalize();
     ufo.position.copy(moon.position).add(flightPosition);
-    // A single arc-length parameter keeps the entry, loops and departure continuous.
+    // Banking follows the velocity without abrupt orientation changes.
     const bank=THREE.MathUtils.clamp(flightTangent.y*.35,-.28,.28);
     ufo.rotation.z=THREE.MathUtils.damp(ufo.rotation.z,bank,4,Math.min(.05,elapsed-(ufoFlight.last??elapsed)));
     ufo.rotation.x=.08+Math.sin(t*Math.PI*4)*.035;ufoFlight.last=elapsed;
   }
+  function getUfoRoute(){
+    const center=moon.position.clone().project(camera),points=[];
+    for(let i=0;i<8;i++){
+      const a=i/8*Math.PI*2,p=new THREE.Vector3(5.5*Math.cos(a),2.8*Math.sin(a),0).add(moon.position).project(camera);
+      points.push([(p.x-center.x)/2,(center.y-p.y)/2]);
+    }
+    return {points,duration:16};
+  }
+  function setUfoRoute(config){
+    customUfoCurve=undefined;ufoDuration=config?.duration??16;
+    if(config?.points?.length>=4){
+      const center=moon.position.clone().project(camera),plane=new THREE.Plane(new THREE.Vector3(0,0,1),-moon.position.z),ray=new THREE.Raycaster();
+      const points=config.points.map(([x,y])=>{
+        ray.setFromCamera(new THREE.Vector2(center.x+x*2,center.y-y*2),camera);
+        const point=new THREE.Vector3();ray.ray.intersectPlane(plane,point);return point.sub(moon.position);
+      });
+      customUfoCurve=new THREE.CatmullRomCurve3(points,true,'centripetal');customUfoCurve.arcLengthDivisions=800;customUfoCurve.updateArcLengths();
+    }
+    ufoFlight=undefined;nextUfoAt=elapsed;
+    requestTick();
+  }
+  function getUfoGuide(){
+    const flight={variant:0,radius:5.5,phase:0},center=moon.position.clone().project(camera);
+    const path=[];
+    for(let i=0;i<=240;i++){
+      const p=sampleUfoFlight(flight,i/240,new THREE.Vector3()).add(moon.position).project(camera);
+      path.push([(p.x+1)/2,(1-p.y)/2]);
+    }
+    return {path,moon:[(center.x+1)/2,(1-center.y)/2]};
+  }
+  function previewUfoRoute(enabled){routePreview=enabled;ufoFlight=undefined;nextUfoAt=elapsed;requestTick();}
   // The shoreline, sloping beach and displaced water share one world-space frame.
   const coastUniforms={coastOrigin:{value:new THREE.Vector2()},coastTangent:{value:new THREE.Vector2(1,0)},coastNormal:{value:new THREE.Vector2(0,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
   const coastGLSL=`
@@ -360,13 +397,14 @@ export async function createWorld(container,options={}){
   for(let i=0;i<4;i++)backStuds.push([0,2.37,.05+i*.24,.75,1,.75]);
   batch(torso,cylinder,darkSide,backStuds,true);
   for(const x of [-.32,.32]){const stud=new THREE.Mesh(cylinder,darkSide);stud.position.set(x,3.43,-.75);torso.add(stud);}
-  const head=new THREE.Group();head.position.set(0,2.7,-.9);torso.add(head);
+  const head=new THREE.Group();head.position.set(0,2.5,-.4);torso.add(head);
   for(const part of [...torso.children])if(part.isMesh&&part.position.y>=2.35&&part.position.z<-.4)head.attach(part);
   const eyeHeights=eyes.map(eye=>eye.scale.y);
   const pointer=new THREE.Vector2(-10000,-10000),headScreen=new THREE.Vector3();
+  const gazeDirection=new THREE.Vector3(),gazeRight=new THREE.Vector3(),gazeUp=new THREE.Vector3(),gazeRotation=new THREE.Quaternion();
   let curiosity=0,reactionStarted=-100;
   function headDistance(event){
-    head.getWorldPosition(headScreen);headScreen.project(camera);
+    headScreen.set(0,.45,-.55);head.localToWorld(headScreen);headScreen.project(camera);
     const rect=container.getBoundingClientRect();
     return Math.hypot(event.clientX-(rect.left+(headScreen.x+1)*rect.width/2),event.clientY-(rect.top+(1-headScreen.y)*rect.height/2));
   }
@@ -374,7 +412,7 @@ export async function createWorld(container,options={}){
   window.addEventListener('pointerout',event=>{if(!event.relatedTarget)pointer.set(-10000,-10000);});
   window.addEventListener('pointerdown',event=>{
     if(matchMedia('(prefers-reduced-motion: reduce)').matches||event.target.closest('button,a,input,select,[role="option"]'))return;
-    if(headDistance(event)<110)reactionStarted=elapsed;
+    if(headDistance(event)<110&&elapsed-reactionStarted>1)reactionStarted=elapsed;
   });
   // Subtle grounding shadow also survives the lightweight, shadow-map-free mode.
   const shadowCanvas=document.createElement('canvas');shadowCanvas.width=64;shadowCanvas.height=64;
@@ -627,22 +665,37 @@ export async function createWorld(container,options={}){
     arms[0].rotation.x=-Math.sin(phase)*.2;arms[1].rotation.x=Math.sin(phase)*.2;
     tail.rotation.y=Math.sin(phase*.5)*.09;
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
-      head.getWorldPosition(headScreen);headScreen.project(camera);
+      headScreen.set(0,2.95,-.95);torso.localToWorld(headScreen);headScreen.project(camera);
       const rect=container.getBoundingClientRect(),centerX=rect.left+(headScreen.x+1)*rect.width/2,centerY=rect.top+(1-headScreen.y)*rect.height/2;
       const distance=Math.hypot(pointer.x-centerX,pointer.y-centerY);
-      curiosity=THREE.MathUtils.damp(curiosity,distance<150?1-distance/190:0,6,delta);
-      head.rotation.y=THREE.MathUtils.clamp((pointer.x-centerX)/65,-1,1)*curiosity*.92;
-      head.rotation.z=-curiosity*.18;head.rotation.x=-curiosity*.25-(sceneTransition?.12:0);
-      torso.rotation.z=curiosity*.065;
+      const attention=1-THREE.MathUtils.smoothstep(distance,180,340);
+      curiosity=THREE.MathUtils.damp(curiosity,attention,18,delta);
+      torso.getWorldQuaternion(gazeRotation);
+      gazeDirection.set(0,0,-4).applyQuaternion(gazeRotation);
+      gazeRight.setFromMatrixColumn(camera.matrixWorld,0);gazeUp.setFromMatrixColumn(camera.matrixWorld,1);
+      gazeDirection.addScaledVector(gazeRight,THREE.MathUtils.clamp(pointer.x-centerX,-220,220)*.026)
+        .addScaledVector(gazeUp,THREE.MathUtils.clamp(centerY-pointer.y,-160,160)*.026)
+        .applyQuaternion(gazeRotation.invert());
+      const yaw=THREE.MathUtils.clamp(Math.atan2(-gazeDirection.x,-gazeDirection.z),-.85,.85)*curiosity;
+      const pitch=THREE.MathUtils.clamp(Math.atan2(gazeDirection.y,Math.hypot(gazeDirection.x,gazeDirection.z)),-.4,.4)*curiosity;
+      head.rotation.y=THREE.MathUtils.damp(head.rotation.y,yaw,20,delta);
+      head.rotation.x=THREE.MathUtils.damp(head.rotation.x,pitch-(sceneTransition?.1:0),20,delta);
+      head.rotation.z=0;torso.rotation.z=0;
       tail.rotation.y+=Math.sin(elapsed*11)*curiosity*.2;
       const hop=elapsed-reactionStarted;
       let lift=0,squash=0;
-      if(hop>=0&&hop<.14)squash=Math.sin(hop/.14*Math.PI)*.17;
-      else if(hop>=.14&&hop<.94){const p=(hop-.14)/.8;lift=4*p*(1-p)*1.55;}
-      else if(hop>=.94&&hop<1.17)squash=Math.sin((hop-.94)/.23*Math.PI)*.2;
+      const preparation=.1,gravity=24,launchSpeed=8.4,flightTime=2*launchSpeed/gravity;
+      if(hop>=0&&hop<preparation)squash=Math.sin(hop/preparation*Math.PI)*.12;
+      else if(hop>=preparation&&hop<preparation+flightTime){const t=hop-preparation;lift=launchSpeed*t-.5*gravity*t*t;}
+      else if(hop>=preparation+flightTime&&hop<preparation+flightTime+.16)squash=Math.sin((hop-preparation-flightTime)/.16*Math.PI)*.12;
       dino.position.y=lift;dino.scale.set(1+squash*.3,1-squash,1+squash*.3);
       contactShadow.material.opacity=1-lift*.32;contactShadow.scale.setScalar(1+lift*.15);
-      if(lift>0){legs[0].rotation.x=.55;legs[1].rotation.x=-.4;arms.forEach(arm=>arm.rotation.x=-.7);}
+      if(lift>0){
+        const tuck=Math.sin(Math.PI*(hop-preparation)/flightTime);
+        legs[0].rotation.x=THREE.MathUtils.lerp(legs[0].rotation.x,.55,tuck);
+        legs[1].rotation.x=THREE.MathUtils.lerp(legs[1].rotation.x,-.4,tuck);
+        arms.forEach(arm=>arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,-.7,tuck));
+      }
       const blink=elapsed%5.2,eyeScale=blink<.18?Math.max(.08,Math.abs(blink-.09)/.09):1;
       eyes.forEach((eye,i)=>eye.scale.y=eyeHeights[i]*eyeScale);
     }
@@ -658,14 +711,14 @@ export async function createWorld(container,options={}){
   let last=performance.now(),lastReport=last,frames=0,raf=0;
   function render(){renderer.render(scene,camera);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000;options.onStats?.({fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval});lastReport=now;frames=0;}}
-  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition))return;const delta=Math.min((now-last)/1000,.05);last=now;if(!paused)animate(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
+  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
   function requestTick(){if(!raf&&(!paused||sceneTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
   window.addEventListener('resize',resize);
   document.addEventListener('visibilitychange',()=>{last=performance.now();lastReport=last;frames=0;if(document.hidden){cancelAnimationFrame(raf);raf=0;}else{render();requestTick();}});
   renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(raf);raf=0;document.querySelector('#render-status').textContent='3D 畫面暫時中斷；工具入口仍可使用。';});
   renderer.domElement.addEventListener('webglcontextrestored',()=>{last=performance.now();document.querySelector('#render-status').textContent='3D 世界已恢復';render();requestTick();});
   updatePalette();resize();setQuality(quality);report(true);requestTick();
-  return {icons,setPaused,setBiome,setQuality,setNight};
+  return {icons,setPaused,setBiome,setQuality,setNight,getUfoRoute,setUfoRoute,getUfoGuide,previewUfoRoute};
 
   function makeIcons(sharedRenderer){
     const result={};const iconScene=new THREE.Scene();

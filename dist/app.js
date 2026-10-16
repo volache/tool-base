@@ -19,13 +19,13 @@ const fallbackIcons={chart:'chart-column',document:'files',board:'panels-top-lef
 function createIcon(name){const node=document.createElement('i');node.dataset.lucide=name;node.setAttribute('aria-hidden','true');return node;}
 function refreshIcons(){globalThis.lucide.createIcons({attrs:{'aria-hidden':'true',focusable:'false','stroke-width':1.8}});}
 const clockTime=new Intl.DateTimeFormat('zh-TW',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-const clockDate=new Intl.DateTimeFormat('zh-TW',{month:'numeric',day:'numeric',weekday:'short'});
+const clockWeekday=new Intl.DateTimeFormat('zh-TW',{weekday:'short'});
 function updateClock(){
   const now=new Date(),label=clockTime.format(now);
   if($('#current-time').textContent!==label)$('#current-time').textContent=label;
   $('#current-time').dateTime=now.toISOString();
   $('#current-time').title=`本機時間 · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
-  $('#current-date').textContent=clockDate.format(now);
+  $('#current-date').textContent=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${clockWeekday.format(now)}`;
 }
 updateClock();setInterval(updateClock,1000);
 let uiTransition;
@@ -217,6 +217,11 @@ try{
   const {createWorld}=await import('./world.js');
   world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report});
   world.setBiome(state.biome);
+  const {initRouteEditor}=await import('./route-editor.js');
+  initRouteEditor(world,{
+    begin(){const previous={night:state.night,paused:state.paused,auto:state.auto};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
+    end(previous){Object.assign(state,previous);lastAuto=0;updateNight();updatePause();}
+  });
   iconURLs=world.icons;
   renderTools();
   $('#render-status').textContent=reduced.matches?'已依系統偏好暫停背景，可手動播放。':'';
