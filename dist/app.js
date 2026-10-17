@@ -257,7 +257,7 @@ $('#rotation-speed').addEventListener('input',e=>{
 });
 updateRotation();
 function report(stats){
-  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=state.rotation){const order=['grass','desert','coast','snow','forest'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
+  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=state.rotation){const order=['grass','desert','coast','snow','forest','city'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
 }
 renderTools();updatePause();updateNight();
 try{

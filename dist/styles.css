@@ -89,3 +89,4 @@ button.clock-weather{font-family:inherit;cursor:pointer}.clock-weather:hover,.cl
 .wp-note{margin:12px 0 0;font-size:11px;line-height:1.7;color:var(--color-muted)}.wp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}.wp-foot small{font-size:11px;color:var(--color-muted)}.wp-foot .control{min-height:36px;padding:0 13px;font-size:12px}.wp-foot .lucide{width:15px;height:15px}.wp-foot button:disabled{opacity:.6}
 @media(max-width:600px){.weather-popover{left:16px;right:16px;top:104px;width:auto;max-height:calc(100svh - 124px)}}
 .wp-hint{margin:8px 0 0;padding:8px 11px;border-radius:12px;background:var(--color-hover);font-size:12px;line-height:1.6;color:var(--color-ink)}
+@media(max-width:600px){.biome:not(.active) span{display:none}.biome:not(.active){padding-inline:12px}}

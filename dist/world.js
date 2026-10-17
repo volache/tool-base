@@ -4,6 +4,7 @@ import {ensureOffscreenEndpoints} from './route-curves.js';
 import {defaultUfoRoute,dynamicMoonUfoRoute} from './ufo-default-route.js';
 import {createSnowWorld} from './snow-world.js';
 import {createForestWorld} from './forest-world.js';
+import {createCityWorld} from './city-world.js';
 import {createMoonPhase} from './moon-phase.js';
 import {getMoonSkyState,getMoonPanoramaHeight} from './moon-sky.js';
 import {createSunWorld} from './sun-world.js';
@@ -48,7 +49,8 @@ export async function createWorld(container,options={}){
     desert:{sky:'#ccdfe8',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'},
     coast:{sky:'#a8d4e9',ground:'#e7c98e',brick:'#efdaab',stud:'#f7e5bc',hill:'#b5d8df',hilltop:'#d8edf0',path:'#c99f69',rock:'#9aabb0',tree:'#3e8b73',trunk:'#b98155',flower:'#f4aa75'},
     snow:{sky:'#bed9e9',ground:'#dce9ed',brick:'#edf4f7',stud:'#f5fafb',hill:'#b5cbd7',hilltop:'#e4f0f6',path:'#cbdde5',rock:'#9ab2c1',tree:'#50776f',trunk:'#8c8076',flower:'#dce9ed'},
-    forest:{sky:'#bbd7df',ground:'#8c9b73',brick:'#a5af82',stud:'#bbc39b',hill:'#6d8a75',hilltop:'#93ad8c',path:'#b6a17c',rock:'#9aab98',tree:'#497451',trunk:'#8c7354',flower:'#ba955f'}
+    forest:{sky:'#bbd7df',ground:'#8c9b73',brick:'#a5af82',stud:'#bbc39b',hill:'#6d8a75',hilltop:'#93ad8c',path:'#b6a17c',rock:'#9aab98',tree:'#497451',trunk:'#8c7354',flower:'#ba955f'},
+    city:{sky:'#b7cfe0',ground:'#7f8991',brick:'#a3acb3',stud:'#b6bec4',hill:'#8b98a6',hilltop:'#b5c0ca',path:'#5b656d',rock:'#99a2a8',tree:'#6f9f72',trunk:'#7c6a58',flower:'#e0a45f'}
   };
   const materials={};
   for(const key of Object.keys(palettes.grass)){
@@ -433,6 +435,7 @@ export async function createWorld(container,options={}){
   }
   const snowWorld=createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunkMaterial:materials.trunk});
   const forestWorld=createForestWorld(THREE,{scene,chunks,cube,batch,random});
+  const cityWorld=createCityWorld(THREE,{scene,chunks,cube,batch,random,groundSpeed:2.65});
   const groundSpeed=2.65;
   const dayLife=createDayLife(THREE,{scene,belt,cube,random,groundSpeed});
   const weatherWorld=createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial:whiteMat});
@@ -543,7 +546,7 @@ export async function createWorld(container,options={}){
   }
   function setQuality(q){
     snowWorld.setQuality(q);
-    forestWorld.setQuality(q);
+    forestWorld.setQuality(q);cityWorld.setQuality(q);
     dayLife.setQuality(q);weatherWorld.setQuality(q);
     quality=q;renderer.shadowMap.enabled=q!=='low';lowDetails.forEach(m=>m.visible=q!=='low');
     sun.shadow.mapSize.set(q==='high'?2048:1024,q==='high'?2048:1024);
@@ -551,7 +554,7 @@ export async function createWorld(container,options={}){
     renderer.shadowMap.needsUpdate=true;resize();
   }
   function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{weatherWorld.calm();render();report(true);}}
-  function setActivity(mode){const previous=activity;activity=({quiet:.35,standard:1,rich:1.5})[mode]??1;if(!routePreview)nextUfoAt=elapsed+Math.max(0,nextUfoAt-elapsed)*previous/activity;snowWorld.setActivity(activity);forestWorld.setActivity(activity);dayLife.setActivity(activity);weatherWorld.setActivity(activity);container.dataset.activity=mode;updatePalette();if(paused)render();}
+  function setActivity(mode){const previous=activity;activity=({quiet:.35,standard:1,rich:1.5})[mode]??1;if(!routePreview)nextUfoAt=elapsed+Math.max(0,nextUfoAt-elapsed)*previous/activity;snowWorld.setActivity(activity);forestWorld.setActivity(activity);cityWorld.setActivity(activity);dayLife.setActivity(activity);weatherWorld.setActivity(activity);container.dataset.activity=mode;updatePalette();if(paused)render();}
   // One finite volume moves continuously through the 45-degree running axis.
   const mistUniforms={tint:{value:new THREE.Color()}};
   const groundMist={mistSeal:{value:0},mistFront:{value:-65},mistBack:{value:-185},mistAnchor:{value:new THREE.Vector2()}};
@@ -737,6 +740,7 @@ export async function createWorld(container,options={}){
     coastUniforms.coastNight.value=nightMix;
     snowWorld.setPalette(biome==='snow',nightMix);snowWorld.animate(elapsed,dino.position.y<.03);
     forestWorld.setPalette(biome==='forest',nightMix);forestWorld.animate(elapsed);
+    cityWorld.setPalette(biome==='city',nightMix);cityWorld.animate(elapsed);
     dayLife.setPalette(biome,nightMix);dayLife.animate(elapsed);
     dustGroup.visible=biome!=='snow';
     scene.background.lerp(tint('#101c35'),nightMix);scene.fog.color.copy(scene.background);
@@ -827,7 +831,7 @@ export async function createWorld(container,options={}){
     }
     animateUfo();
     snowWorld.animate(elapsed,dino.position.y<.03);
-    forestWorld.animate(elapsed);
+    forestWorld.animate(elapsed);cityWorld.animate(elapsed);
     dayLife.animate(elapsed);
     if(ufo.visible)container.dataset.skyEvent='ufo';else delete container.dataset.skyEvent;
     const weatherLook=weatherWorld.look;weatherWorld.animate(delta,nightMix);dayLife.setWind(weatherLook.wind);
