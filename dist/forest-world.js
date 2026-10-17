@@ -10,8 +10,9 @@ export function createForestWorld(THREE,{scene,chunks,cube,batch,random}){
   for(const {group} of chunks){
     const grove=new THREE.Group();group.add(grove);groves.push(grove);
     const bark=[],leaves=[],crowns=[],ferns=[],litter=[],caps=[];
-    for(let i=0;i<6;i++){
-      const x=(i%2?-1:1)*(12+random()*35),z=(random()-.5)*13,s=.7+random()*.35,h=(2.7+random()*.9)*s;
+    for(let i=0;i<18;i++){
+      const row=Math.floor(i/6),column=Math.floor((i%6)/2);
+      const x=(i%2?-1:1)*(11+column*12+(row%2)*2+random()*9),z=-5+row*5+(random()-.5)*4.5,s=.7+random()*.35,h=(2.7+random()*.9)*s;
       bark.push([x,h/2-.3,z,.5*s,h,.55*s],[x+.65*s,h*.65,z,1.55*s,.3*s,.35*s]);
       // Offset crowns give each toy tree a broad, irregular silhouette.
       leaves.push([x,h-.1,z,2.9*s,1.1*s,2.5*s],[x-.75*s,h+.55*s,z+.1,2.35*s,.9*s,2.1*s],[x+1.05*s,h+.3*s,z-.2,1.95*s,.85*s,2*s]);

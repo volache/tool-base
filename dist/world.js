@@ -4,6 +4,7 @@ import {ensureOffscreenEndpoints} from './route-curves.js';
 import {defaultUfoRoute} from './ufo-default-route.js';
 import {createSnowWorld} from './snow-world.js';
 import {createForestWorld} from './forest-world.js';
+import {createMoonPhase} from './moon-phase.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
 // Instancing keeps the many brick studs and terrain pieces in a small number of draw calls.
@@ -99,8 +100,8 @@ export async function createWorld(container,options={}){
     const cloud=new THREE.Mesh(cloudGeometry,whiteMat);cloud.position.set(x,y,z);cloud.scale.setScalar(s);cloudGroup.add(cloud);
   }
   const nightSky=new THREE.Group();scene.add(nightSky);
-  const moonMaterial=new THREE.MeshBasicMaterial({color:'#fff3ce',fog:false,toneMapped:false,transparent:true});
-  const moon=new THREE.Mesh(new THREE.SphereGeometry(1.35,24,16),moonMaterial);moon.position.set(23,18,-48);nightSky.add(moon);
+  const moonPhase=createMoonPhase(THREE);
+  const moon=new THREE.Mesh(new THREE.SphereGeometry(1.35,48,32),moonPhase.material);moon.position.set(23,18,-48);nightSky.add(moon);
   const starPositions=[];
   for(let i=0;i<85;i++)starPositions.push((random()-.5)*150,12+random()*42,-60-random()*45);
   const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
@@ -611,7 +612,7 @@ export async function createWorld(container,options={}){
     if(!['grass','desert'].includes(biome)){scene.background.set(palettes[biome].sky);scene.fog.color.copy(scene.background);}
     else{colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);}
     nightSky.visible=nightMix>.001;cloudGroup.visible=nightMix<.999;
-    moonMaterial.opacity=starMaterial.opacity=nightMix;whiteMat.opacity=1-nightMix;
+    moonPhase.setOpacity(nightMix);starMaterial.opacity=nightMix;whiteMat.opacity=1-nightMix;
     sea.visible=biome==='coast';
     coastUniforms.coastEnabled.value=biome==='coast'?1:0;
     coastUniforms.coastNight.value=nightMix;
@@ -688,7 +689,7 @@ export async function createWorld(container,options={}){
     }
   }
   let last=performance.now(),lastReport=last,frames=0,raf=0;
-  function render(){volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
+  function render(){moonPhase.update();moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000;options.onStats?.({fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval});lastReport=now;frames=0;}}
   function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
   function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
@@ -697,6 +698,8 @@ export async function createWorld(container,options={}){
   renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(raf);raf=0;document.querySelector('#render-status').textContent='3D 畫面暫時中斷；工具入口仍可使用。';});
   renderer.domElement.addEventListener('webglcontextrestored',()=>{last=performance.now();document.querySelector('#render-status').textContent='3D 世界已恢復';render();requestTick();});
   updatePalette();resize();setQuality(quality);
+  // Pausing ambient motion still allows the astronomical clock to advance.
+  setInterval(()=>{if(paused&&!document.hidden&&moonPhase.update())render();},60000);
   // Warm the sky programs while loading so first night/day use does not compile on click.
   const skyVisible=nightSky.visible,cloudsVisible=cloudGroup.visible;
   nightSky.visible=cloudGroup.visible=true;
