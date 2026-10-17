@@ -7,6 +7,12 @@ export function getMoonSkyState(time,location){
   return {altitude:p.altitude,azimuth:p.azimuth,direction:[c*Math.sin(p.azimuth),Math.sin(p.altitude),-c*Math.cos(p.azimuth)],tilt:illumination.angle-p.parallacticAngle};
 }
 
+let panoramaCache;
+export function getMoonPanoramaHeight(state,time,location){
+  const bounds=getLocationDayBounds(location,new Date(time)),key=`${location.lat}:${location.lng}:${bounds.date}`;
+  if(panoramaCache?.key!==key){let peak=.01;for(let i=0;i<=192;i++)peak=Math.max(peak,Math.sin(getMoonSkyState(bounds.start+(bounds.end-bounds.start)*i/192,location).altitude));panoramaCache={key,peak};}
+  return .025+Math.sin(state.altitude)/panoramaCache.peak*.80;
+}
 export function initMoonSky(world,{beginPreview,endPreview}){
   const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let location=readCompanyLocation(),enabled=true,preview=false,playing=false,bounds,previewTime,previewEvents,previous,lastFrame=0,raf=0,previewCloseTimer=0;
@@ -38,7 +44,8 @@ export function initMoonSky(world,{beginPreview,endPreview}){
     for(let i=0;i<=96;i++){
       const state=getMoonSkyState(bounds.start+(bounds.end-bounds.start)*i/96,location),sinAltitude=Math.sin(state.altitude);
       if(state.altitude<-.03){parts.push(null);continue;}
-      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=Math.max(26,Math.min(height*.62,(1-(.025+sinAltitude*1.08))*height/2));
+      const sampleTime=bounds.start+(bounds.end-bounds.start)*i/96;
+      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=(1-getMoonPanoramaHeight(state,sampleTime,location))*height/2;
       parts.push([x,y]);
     }
     let penUp=true,d='',first,last;for(const point of parts){if(!point){penUp=true;continue;}if(!first)first=point;last=point;d+=`${penUp?'M':'L'}${point[0].toFixed(1)} ${point[1].toFixed(1)} `;penUp=false;}

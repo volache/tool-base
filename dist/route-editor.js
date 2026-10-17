@@ -67,7 +67,9 @@ export function initRouteEditor(world,{begin,end}){
     ensureHandles();
     const {width,height}=svg.getBoundingClientRect(),guide=world.getUfoGuide();
     svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
-    const path=guide.path.map(([x,y],i)=>`${i?'L':'M'}${(x*width).toFixed(2)},${(y*height).toFixed(2)}`).join(' ');
+    const point=([x,y])=>`${((guide.moon[0]+x)*width).toFixed(2)},${((guide.moon[1]+y)*height).toFixed(2)}`;
+    let path=`M${point(config.nodes[0].p)}`;
+    for(let i=1;i<config.nodes.length;i++){const a=config.nodes[i-1],b=config.nodes[i];path+=` C${point([a.p[0]+a.out[0],a.p[1]+a.out[1]])} ${point([b.p[0]+b.in[0],b.p[1]+b.in[1]])} ${point(b.p)}`;}
     $('route-path').setAttribute('d',path);$('route-hit').setAttribute('d',path);
     [...handles.children].forEach((g,i)=>{
       const [x,y]=config.nodes[i].p,sx=guide.moon[0]+x,sy=guide.moon[1]+y,outside=sx<0||sx>1||sy<0||sy>1;
@@ -103,7 +105,7 @@ export function initRouteEditor(world,{begin,end}){
   function scheduleDraft(){if(!pendingFrame)pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;if(active)applyDraft();});}
   function open(){
     if(active)return;active=true;viewingDynamic=false;previous=begin();routes=copy(saved?.routes??defaults());routeIndex=0;selectedPoint=0;config=routes[0];routeTabs();document.querySelectorAll('header,main,footer,#settings').forEach(el=>el.inert=true);
-    const reveal=()=>{if(!active)return;root.hidden=false;root.classList.remove('is-closing');root.classList.add('is-opening');requestAnimationFrame(()=>root.classList.remove('is-opening'));world.previewUfoRoute(true);applyDraft();const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reveal=()=>{if(!active)return;$('route-dynamic-preview').classList.remove('active');$('route-dynamic-preview').innerHTML='<i data-lucide="route" aria-hidden="true"></i>查看動態月亮航線';globalThis.lucide.createIcons();root.hidden=false;root.classList.remove('is-closing');root.classList.add('is-opening');requestAnimationFrame(()=>root.classList.remove('is-opening'));world.previewUfoRoute(true);applyDraft();const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
       $('route-replay').disabled=reduced;$('route-status').textContent=reduced?'已依系統偏好停止動畫，仍可編輯與匯出航線。':'儲存後依序輪換所有航線，僅套用在此瀏覽器。';$('route-close').focus();};
     setTimeout(reveal,previous.panelDelay??0);
   }
@@ -206,7 +208,7 @@ export function initRouteEditor(world,{begin,end}){
   });
   $('ufo-duration').addEventListener('input',event=>{config.duration=Number(event.target.value);scheduleDraft();});
   $('route-replay').addEventListener('click',()=>{applyDraft();world.previewUfoRoute(true);});
-  $('route-dynamic-preview').addEventListener('click',()=>{viewingDynamic=!viewingDynamic;config=copy(viewingDynamic?dynamicMoonUfoRoute:routes[routeIndex]);selectedPoint=0;ensureHandles();draw();world.setUfoRoute(config);$('route-dynamic-preview').classList.toggle('active',viewingDynamic);$('route-dynamic-preview').innerHTML=viewingDynamic?'<i data-lucide="rotate-ccw" aria-hidden="true"></i>返回編輯中的航線':'<i data-lucide="route" aria-hidden="true"></i>查看動態月亮航線';$('route-status').textContent=viewingDynamic?'正在預覽動態月亮航線：它穿越天空，不繞行會移動的月亮。':'已回到可編輯的航線。';globalThis.lucide.createIcons({attrs:{'aria-hidden':true,focusable:'false','stroke-width':1.8}});});
+  $('route-dynamic-preview').addEventListener('click',()=>{viewingDynamic=!viewingDynamic;config=viewingDynamic?copy(dynamicMoonUfoRoute):routes[routeIndex];selectedPoint=0;applyDraft();$('route-dynamic-preview').classList.toggle('active',viewingDynamic);$('route-dynamic-preview').innerHTML=`<i data-lucide="route" aria-hidden="true"></i>查看${viewingDynamic?'靜態':'動態'}月亮航線`;$('route-status').textContent=viewingDynamic?'正在預覽動態月亮航線：它穿越天空，不繞行會移動的月亮。':'正在查看靜態月亮航線。';globalThis.lucide.createIcons({attrs:{'aria-hidden':'true',focusable:'false','stroke-width':1.8}});});
   $('route-reset').addEventListener('click',()=>{config={...world.getUfoRoute(),name:config.name};routes[routeIndex]=config;selectedPoint=0;applyDraft();});
   $('route-save').addEventListener('click',()=>{
     if(viewingDynamic){$('route-status').textContent='動態月亮航線僅供預覽；請先返回編輯中的航線再儲存。';return;}

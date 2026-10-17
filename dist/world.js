@@ -5,7 +5,7 @@ import {defaultUfoRoute,dynamicMoonUfoRoute} from './ufo-default-route.js';
 import {createSnowWorld} from './snow-world.js';
 import {createForestWorld} from './forest-world.js';
 import {createMoonPhase} from './moon-phase.js';
-import {getMoonSkyState} from './moon-sky.js';
+import {getMoonSkyState,getMoonPanoramaHeight} from './moon-sky.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
 // Instancing keeps the many brick studs and terrain pieces in a small number of draw calls.
@@ -126,8 +126,7 @@ export async function createWorld(container,options={}){
     if(preview){
       const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
       // Keep the moon moving below the horizon so its limb is revealed progressively.
-      const sinAltitude=Math.sin(state.altitude),skyHeight=sinAltitude*1.08;
-      moonTarget.set(state.azimuth/Math.PI*1.5,.025+skyHeight,depth).unproject(camera);
+      moonTarget.set(state.azimuth/Math.PI*1.5,getMoonPanoramaHeight(state,time,moonTracking.location),depth).unproject(camera);
       moonPhase.setHorizon(2,.02);
     }else{moonTarget.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
     const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
@@ -234,7 +233,7 @@ export async function createWorld(container,options={}){
     }
     return {path,moon:[(center.x+1)/2,(1-center.y)/2]};
   }
-  function previewUfoRoute(enabled){routePreview=enabled;updateMoonPosition();ufoFlight=undefined;nextUfoAt=elapsed;requestTick();}
+  function previewUfoRoute(enabled){routePreview=enabled;if(enabled)moonTransition=undefined;updateMoonPosition();ufoFlight=undefined;nextUfoAt=elapsed;requestTick();}
   // The shoreline, sloping beach and displaced water share one world-space frame.
   const coastUniforms={coastOrigin:{value:new THREE.Vector2()},coastTangent:{value:new THREE.Vector2(1,0)},coastNormal:{value:new THREE.Vector2(0,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
   const coastGLSL=`

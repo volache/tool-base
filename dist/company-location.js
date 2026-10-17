@@ -28,7 +28,9 @@ export function getLocationMoonTimes(location,now=new Date()){
 }
 export function initCompanyLocation(){
   const $=id=>document.getElementById(id),dialog=$('location-dialog'),form=$('location-form');
-  let saved,lastDay='';
+  let saved,lastDay='',closeTimer;
+  function closeLocation(){if(!dialog.open||dialog.classList.contains('is-closing'))return;dialog.classList.add('is-closing');closeTimer=setTimeout(()=>{dialog.close();dialog.classList.remove('is-closing');},190);}
+  dialog.addEventListener('cancel',event=>{event.preventDefault();closeLocation();});
   try{const value=JSON.parse(localStorage.getItem(storageKey));if(validLocation(value))saved=value;}catch{}
   function refresh(force=false){
     $('location-label').textContent=saved?.name||'未設定';$('location-clear').disabled=!saved;
@@ -42,10 +44,10 @@ export function initCompanyLocation(){
   }
   $('location-edit').addEventListener('click',()=>{
     $('location-name').value=saved?.name||'';$('location-lat').value=saved?.lat??'';$('location-lng').value=saved?.lng??'';$('location-timezone').value=saved?.timeZone||'Asia/Taipei';
-    $('location-message').textContent='';dialog.showModal();$('location-name').focus();
+    clearTimeout(closeTimer);dialog.classList.remove('is-closing');$('location-message').textContent='';dialog.showModal();$('location-name').focus();
   });
-  $('location-close').addEventListener('click',()=>dialog.close());
-  dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();});
+  $('location-close').addEventListener('click',closeLocation);
+  dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeLocation();});
   const presets={taipei:['台北',25.033,121.5654],taichung:['台中',24.1477,120.6736],kaohsiung:['高雄',22.6273,120.3014],hualien:['花蓮',23.9911,121.6112]};
   document.querySelectorAll('[data-location-preset]').forEach(button=>button.addEventListener('click',()=>{
     const [name,lat,lng]=presets[button.dataset.locationPreset];$('location-name').value=name;$('location-lat').value=lat;$('location-lng').value=lng;$('location-timezone').value='Asia/Taipei';$('location-message').textContent=`已填入${name}市中心座標，可調整後儲存。`;
@@ -55,11 +57,11 @@ export function initCompanyLocation(){
     const next={name:$('location-name').value.trim()||'自訂地點',lat:Number($('location-lat').value),lng:Number($('location-lng').value),timeZone:$('location-timezone').value.trim()};
     if(!$('location-lat').value.trim()||!$('location-lng').value.trim()||!validLocation(next)){$('location-message').textContent='請確認經緯度範圍及時區名稱，例如 Asia/Taipei。';return;}
     try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{$('location-message').textContent='瀏覽器無法儲存設定，請確認儲存空間或隱私設定。';return;}
-    saved=next;refresh(true);window.dispatchEvent(new CustomEvent('company-location-change',{detail:saved}));dialog.close();$('announcer').textContent=`已將公司所在地設為${saved.name}。`;
+    saved=next;refresh(true);window.dispatchEvent(new CustomEvent('company-location-change',{detail:saved}));closeLocation();$('announcer').textContent=`已將公司所在地設為${saved.name}。`;
   });
   $('location-clear').addEventListener('click',()=>{
     try{localStorage.removeItem(storageKey);}catch{$('location-message').textContent='無法清除設定，請稍後再試。';return;}
-    saved=undefined;lastDay='';refresh();window.dispatchEvent(new CustomEvent('company-location-change',{detail:null}));dialog.close();$('announcer').textContent='已清除公司所在地。';
+    saved=undefined;lastDay='';refresh();window.dispatchEvent(new CustomEvent('company-location-change',{detail:null}));closeLocation();$('announcer').textContent='已清除公司所在地。';
   });
   refresh(true);setInterval(()=>{if(!document.hidden)refresh();},60000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
