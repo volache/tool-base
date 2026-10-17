@@ -17,7 +17,7 @@
   <a class="skip-link" href="#main">跳至工具入口</a>
   <header class="topbar">
     <a class="brand" href="./" aria-label="工具基地首頁"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><strong>工具基地</strong><span class="brand-divider"></span><span class="brand-caption">讓工作，輕快一點。</span></a>
-    <div class="clock" aria-label="目前時間與天氣"><span id="current-weather" class="clock-weather" hidden><span id="current-weather-icon" class="clock-weather-icon" aria-hidden="true"></span><b id="current-weather-label"></b><small id="current-weather-temp"></small></span><div class="clock-main"><time id="current-time">--:--</time><span id="current-date"></span></div></div>
+    <div class="clock" aria-label="目前時間與天氣"><button id="current-weather" class="clock-weather" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="weather-popover" hidden><span id="current-weather-icon" class="clock-weather-icon" aria-hidden="true"></span><b id="current-weather-label"></b><small id="current-weather-temp"></small></button><div class="clock-main"><time id="current-time">--:--</time><span id="current-date"></span></div></div>
     <div class="header-controls">
       <button id="night" class="control icon-control" aria-label="切換黑夜模式" aria-pressed="false" title="切換黑夜模式"><i data-lucide="moon" aria-hidden="true"></i></button>
       <button id="pause" class="control icon-control" aria-label="暫停動畫" title="暫停動畫" aria-pressed="false"><span id="pause-icon" aria-hidden="true"><i data-lucide="pause"></i></span></button>
@@ -141,6 +141,14 @@
     <div id="demo-area"></div>
     <button class="primary" id="dialog-done" autofocus>知道了</button>
   </dialog>
+  <section id="weather-popover" class="weather-popover" role="dialog" aria-labelledby="weather-pop-title" hidden>
+    <div class="settings-head"><span><small class="panel-kicker" id="weather-pop-kicker">目前天氣</small><h2 id="weather-pop-title">天氣</h2></span><button id="weather-pop-close" class="control icon-control" type="button" aria-label="關閉天氣詳情"><i data-lucide="x" aria-hidden="true"></i></button></div>
+    <div class="wp-now"><span id="weather-pop-icon" class="wp-icon" aria-hidden="true"></span><strong id="weather-pop-temp"></strong></div>
+    <dl id="weather-pop-details" class="wp-details"></dl>
+    <div id="weather-pop-forecast-section"><h3 class="wp-heading">未來三天</h3><ol id="weather-pop-forecast" class="wp-forecast"></ol></div>
+    <p class="wp-note" id="weather-pop-note">資料來自 Open-Meteo 的模型預報，氣溫可能與實際相差 1–2°C。</p>
+    <div class="wp-foot"><small id="weather-pop-updated"></small><button id="weather-pop-refresh" class="control" type="button"><i data-lucide="refresh-cw" aria-hidden="true"></i><span>立即更新</span></button></div>
+  </section>
   <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
   <dialog id="location-dialog" aria-labelledby="location-title">
     <button id="location-close" type="button" class="dialog-close icon-control control" aria-label="關閉所在地設定"><i data-lucide="x" aria-hidden="true"></i></button>

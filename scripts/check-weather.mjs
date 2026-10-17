@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-const {mapWeather,adaptToBiome,validateCurrent,fetchWeather,createWeatherService,weatherPresets,weatherLabels}=await import('../dist/weather.js');
+const {mapWeather,adaptToBiome,validateCurrent,fetchWeather,createWeatherService,weatherPresets,weatherLabels,parseDaily,mapDaily,windLabel,visibilityLabel}=await import('../dist/weather.js');
 const read=(code,cloud=0,wind=0,extra={})=>mapWeather({weather_code:code,cloud_cover:cloud,wind_speed_10m:wind,...extra});
+const daily={time:['2026-10-18','2026-10-19','2026-10-20','bad'],weather_code:[45,63,96,1],temperature_2m_max:[29,27.5,30,25],temperature_2m_min:[23,22,24,20],precipitation_probability_max:[6,80,90,0],cloud_cover_mean:[20,95,100,0]};
 const saturated={relative_humidity_2m:96,visibility:300};
 // WMO code mapping
 assert.equal(read(0,5).kind,'clear');assert(read(0,100).cloud<=.3,'A clear-sky code never draws a heavy cloud deck.');
@@ -31,19 +32,28 @@ assert.throws(()=>validateCurrent({current:{...good.current,relative_humidity_2m
 for(const bad of [null,{},{current:{}},{current:{...good.current,weather_code:3.5}},{current:{...good.current,cloud_cover:140}},{current:{...good.current,wind_speed_10m:'4'}},{current:{...good.current,temperature_2m:NaN}},{current:{...good.current,weather_code:120}}])assert.throws(()=>validateCurrent(bad));
 // Network behaviour with a fake fetch
 const location={lat:23.99113,lng:121.61124,timeZone:'Asia/Taipei'};
-let calls=[];const okFetch=async url=>{calls.push(url);return {ok:true,json:async()=>good};};
+let calls=[];const withDaily={...good,daily};const okFetch=async url=>{calls.push(url);return {ok:true,json:async()=>withDaily};};
 await fetchWeather(location,{fetchImpl:okFetch});
-const url=new URL(calls[0]);assert.equal(url.hostname,'api.open-meteo.com');assert.equal(url.searchParams.get('latitude'),'23.99');assert.equal(url.searchParams.get('longitude'),'121.61');
+const url=new URL(calls[0]);assert.equal(url.hostname,'api.open-meteo.com');assert.equal(url.searchParams.get('forecast_days'),'3');assert.equal(url.searchParams.get('latitude'),'23.99');assert.equal(url.searchParams.get('longitude'),'121.61');
 assert(![...url.searchParams.keys()].some(k=>/key|token|secret/i.test(k)),'No credential may be sent.');
 await assert.rejects(fetchWeather(location,{fetchImpl:async()=>({ok:false,status:500})}));
 await assert.rejects(fetchWeather(location,{fetchImpl:async()=>({ok:true,json:async()=>({current:{}})})}));
+// Daily outlook: malformed days are skipped, never thrown; model "fog" over dry air is mapped through cloud cover
+const days=parseDaily({daily});assert.equal(days.length,3,'Only the next three days are kept.');
+assert.deepEqual(parseDaily({}),[]);assert.deepEqual(parseDaily({daily:{time:'x'}}),[]);
+assert.equal(parseDaily({daily:{...daily,weather_code:[45,'x',96]}}).length,2,'A malformed day is skipped.');
+const outlook=mapDaily(days);assert.equal(outlook[0].kind,'clear','Daily model fog over clear skies reads as clear.');assert.equal(outlook[1].kind,'rain');assert.equal(outlook[2].kind,'thunder');assert.equal(outlook[1].pop,80);assert.equal(outlook[0].label,'晴朗');
+assert.deepEqual(mapDaily(),[]);
+// Plain-language wind and visibility
+assert.equal(windLabel(0),'無風');assert.equal(windLabel(2),'輕風');assert.equal(windLabel(6),'和風');assert.equal(windLabel(15),'疾風');assert.equal(windLabel(30),'暴風');
+assert.equal(visibilityLabel(24140),'24 公里以上');assert.equal(visibilityLabel(3200),'3.2 公里');assert.equal(visibilityLabel(620),'620 公尺');assert.equal(visibilityLabel(null),null);assert.equal(visibilityLabel(undefined),null);
 // Service: cache, freshness, failure fallback, stale expiry
 const memory=()=>{const data={};return {getItem:k=>data[k]??null,setItem:(k,v)=>{data[k]=v;}};};
 let clock=1_000_000,fetches=0,fail=false;
 const fetchImpl=async()=>{fetches++;if(fail)throw new Error('offline');return {ok:true,json:async()=>good};};
 const storage=memory(),seen=[];
 const service=createWeatherService({getLocation:()=>location,onChange:s=>seen.push(s),fetchImpl,storage,now:()=>clock});
-await service.update();assert.equal(fetches,1);assert.equal(service.snapshot().status,'ok');assert.equal(service.snapshot().state.kind,'cloudy');assert.equal(service.snapshot().temperature,22);
+await service.update();assert.equal(fetches,1);assert.equal(service.snapshot().status,'ok');assert.equal(service.snapshot().state.kind,'cloudy');assert.equal(service.snapshot().temperature,22);assert.equal(service.snapshot().forecast.length,0,'No daily data yet in this fake response.');
 await service.update();assert.equal(fetches,1,'A fresh reading is not fetched again.');
 clock+=16*60*1000;await service.update();assert.equal(fetches,2,'Readings older than 15 minutes refresh.');
 fail=true;clock+=16*60*1000;await service.update();assert.equal(service.snapshot().status,'error');assert.equal(service.snapshot().state.kind,'cloudy','The last good reading is kept after a failure.');

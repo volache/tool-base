@@ -1,7 +1,7 @@
 import {tools} from './tools.js';
 import {initCompanyLocation,readCompanyLocation} from './company-location.js';
 import {getSkyNight} from './sky-model.js';
-import {createWeatherService,weatherPresets,weatherLabels} from './weather.js';
+import {createWeatherService,weatherPresets,weatherLabels,windLabel,visibilityLabel} from './weather.js';
 import {createCombobox} from './combobox.js';
 import {initMoonSky} from './moon-sky.js';
 import {initSunSky} from './sun-sky.js';
@@ -286,6 +286,54 @@ try{
     chip.title=previewing?`天氣預覽：${label}`:`${label} · ${Math.round(snapshot.temperature)}°C · ${weatherClock.format(snapshot.updatedAt)} 更新 · 資料來源 Open-Meteo${snapshot.status==='error'?'（暫時無法更新）':''}`;
     chip.setAttribute('aria-label',chip.title);
   }
+  // Details popover, opened from the chip beside the clock.
+  const popover=$('#weather-popover'),chip=$('#current-weather');
+  const dayNames=['今天','明天','後天'];
+  function renderWeatherPopover(snapshot=weatherService.snapshot(),location=readCompanyLocation()){
+    const previewing=!!weatherOverride,live=weatherOn&&location&&snapshot.state;
+    const kind=previewing?weatherOverride:(live?snapshot.state.kind:null);
+    if(!kind){if(!popover.hidden)closeWeatherPopover();return;}
+    $('#weather-pop-kicker').textContent=previewing?'天氣預覽':'目前天氣';
+    $('#weather-pop-title').textContent=weatherLabels[kind];
+    $('#weather-pop-icon').replaceChildren(createIcon(weatherIcons[kind]));
+    const showLive=!previewing&&live;
+    $('#weather-pop-temp').textContent=showLive&&Number.isFinite(snapshot.temperature)?`${Math.round(snapshot.temperature)}°C`:'';
+    const rows=showLive&&snapshot.details?[['濕度',snapshot.details.humidity!==null?`${Math.round(snapshot.details.humidity)}%`:null],['風',`${windLabel(snapshot.details.wind)} · ${snapshot.details.wind.toFixed(1)} m/s`],['雲量',`${Math.round(snapshot.details.cloud)}%`],['能見度',visibilityLabel(snapshot.details.visibility)]].filter(row=>row[1]):[];
+    $('#weather-pop-details').replaceChildren(...rows.map(([name,value])=>{const box=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=name;dd.textContent=value;box.append(dt,dd);return box;}));
+    const forecast=showLive?snapshot.forecast:[];
+    $('#weather-pop-forecast-section').hidden=!forecast.length;
+    $('#weather-pop-forecast').replaceChildren(...forecast.map((day,index)=>{
+      const row=document.createElement('li'),date=document.createElement('time'),name=document.createElement('span'),range=document.createElement('small');
+      date.textContent=dayNames[index]??day.date.slice(5);date.dateTime=day.date;
+      name.textContent=day.label;range.textContent=`${Math.round(day.tmin)}–${Math.round(day.tmax)}°C${day.pop!==null?` · 降雨 ${Math.round(day.pop)}%`:''}`;
+      row.append(date,createIcon(weatherIcons[day.kind]),name,range);return row;
+    }));
+    $('#weather-pop-note').textContent=previewing?'目前是天氣預覽，不顯示實際數據。在設定中選擇「依實際天氣」即可回到真實資料。':'資料來自 Open-Meteo 的模型預報，氣溫可能與實際相差 1 到 2 度。';
+    const refresh=$('#weather-pop-refresh'),loading=snapshot.status==='loading';
+    refresh.hidden=previewing;refresh.disabled=loading;refresh.querySelector('span').textContent=loading?'更新中…':'立即更新';
+    $('#weather-pop-updated').textContent=showLive&&snapshot.updatedAt?`${weatherClock.format(snapshot.updatedAt)} 更新${snapshot.status==='error'?'（暫時無法更新）':''}`:'';
+    refreshIcons();
+  }
+  function openWeatherPopover(){
+    if(chip.hidden)return;
+    renderWeatherPopover();
+    popover.hidden=false;popover.classList.remove('is-closing');popover.classList.add('is-opening');
+    const done=event=>{if(event&&event.target!==popover)return;popover.classList.remove('is-opening');popover.removeEventListener('animationend',done);};
+    popover.addEventListener('animationend',done);setTimeout(done,320);
+    chip.setAttribute('aria-expanded','true');$('#weather-pop-close').focus({preventScroll:true});
+  }
+  let weatherPopoverTimer=0;
+  function closeWeatherPopover(focus=false){
+    if(popover.hidden)return;
+    popover.classList.add('is-closing');chip.setAttribute('aria-expanded','false');
+    clearTimeout(weatherPopoverTimer);weatherPopoverTimer=setTimeout(()=>{popover.hidden=true;popover.classList.remove('is-closing');},180);
+    if(focus)chip.focus({preventScroll:true});
+  }
+  chip.addEventListener('click',()=>{popover.hidden||popover.classList.contains('is-closing')?openWeatherPopover():closeWeatherPopover();});
+  $('#weather-pop-close').addEventListener('click',()=>closeWeatherPopover(true));
+  $('#weather-pop-refresh').addEventListener('click',()=>{weatherService.refresh();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!popover.hidden){event.preventDefault();event.stopPropagation();closeWeatherPopover(true);}},true);
+  document.addEventListener('pointerdown',event=>{if(!popover.hidden&&!popover.contains(event.target)&&!chip.contains(event.target))closeWeatherPopover();});
   function renderWeather(snapshot=weatherService.snapshot()){
     const location=readCompanyLocation();
     $('#weather-link').checked=weatherOn;$('#weather-link').disabled=!location;
@@ -299,6 +347,7 @@ try{
     }else text=snapshot.status==='error'?'暫時無法取得天氣，先顯示晴朗':'取得天氣中…';
     $('#weather-status').textContent=text;
     renderClockWeather(snapshot,location);
+    renderWeatherPopover(snapshot,location);
     world.setWeather(weatherOverride?weatherPresets[weatherOverride]:(weatherOn&&location?snapshot.state:null));
   }
   $('#weather-link').addEventListener('change',event=>{weatherOn=event.target.checked;try{localStorage.setItem('tool-portal-weather',String(weatherOn));}catch{}weatherService.setEnabled(weatherOn);renderWeather();$('#announcer').textContent=weatherOn?'已開啟天氣連動':'已關閉天氣連動';});

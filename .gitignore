@@ -3,3 +3,6 @@ node_modules/
 .sites-checkout/
 *.tar.gz
 *.tgz
+
+.test-output/
+.claude/

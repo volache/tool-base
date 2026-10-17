@@ -20,6 +20,16 @@ export const weatherPresets={
   windy:{kind:'windy',cloud:.35,rain:0,snow:0,fog:0,thunder:0,wind:1}
 };
 
+// Beaufort scale in plain Chinese, from wind speed in m/s.
+export function windLabel(speed){
+  const steps=[[.3,'無風'],[1.6,'軟風'],[3.4,'輕風'],[5.5,'微風'],[8,'和風'],[10.8,'清勁風'],[13.9,'強風'],[17.2,'疾風'],[20.8,'烈風']];
+  return (steps.find(([limit])=>speed<limit)??[0,'暴風'])[1];
+}
+export function visibilityLabel(meters){
+  if(!Number.isFinite(meters))return null;
+  return meters>=10000?`${Math.round(meters/1000)} 公里以上`:meters>=1000?`${(meters/1000).toFixed(1)} 公里`:`${Math.round(meters)} 公尺`;
+}
+
 // WMO weather interpretation codes -> renderer state. Wind: 2 m/s is calm, 12 m/s and above is the strongest we draw.
 // Open-Meteo reports "fog" (45/48) whenever its model visibility is low, even at 50-70% humidity where there is no real fog.
 // Trust it only when the air is nearly saturated and visibility is genuinely short; otherwise fall back to the cloud cover.
@@ -67,27 +77,46 @@ export function validateCurrent(data){
   return result;
 }
 
+// Daily outlook: never throws, a malformed day is simply skipped. Open-Meteo's daily code can also say "fog" over dry air,
+// so each day is mapped from its code and mean cloud cover through the same rules as the current reading.
+export function parseDaily(data){
+  const daily=data?.daily;
+  if(!daily||!Array.isArray(daily.time))return [];
+  const number=(list,index,min,max)=>{const value=list?.[index];return typeof value==='number'&&Number.isFinite(value)&&value>=min&&value<=max?value:null;};
+  const days=[];
+  for(let i=0;i<Math.min(daily.time.length,3);i++){
+    const code=number(daily.weather_code,i,0,99),tmax=number(daily.temperature_2m_max,i,-90,70),tmin=number(daily.temperature_2m_min,i,-90,70);
+    if(typeof daily.time[i]!=='string'||code===null||tmax===null||tmin===null)continue;
+    days.push({date:daily.time[i],code,tmax,tmin,pop:number(daily.precipitation_probability_max,i,0,100),cloud:number(daily.cloud_cover_mean,i,0,100)??50});
+  }
+  return days;
+}
+export function mapDaily(days=[]){
+  return days.map(day=>{const state=mapWeather({weather_code:day.code,cloud_cover:day.cloud,wind_speed_10m:0});return {date:day.date,kind:state.kind,label:weatherLabels[state.kind],tmin:day.tmin,tmax:day.tmax,pop:day.pop};});
+}
+
 const roundedCoordinate=value=>Math.round(value*100)/100;
 export function weatherKey(location){return `${roundedCoordinate(location.lat)},${roundedCoordinate(location.lng)}`;}
 
 export async function fetchWeather(location,{fetchImpl=globalThis.fetch,timeout=TIMEOUT_MS}={}){
-  const query=new URLSearchParams({latitude:String(roundedCoordinate(location.lat)),longitude:String(roundedCoordinate(location.lng)),current:'weather_code,cloud_cover,wind_speed_10m,temperature_2m,relative_humidity_2m,visibility',wind_speed_unit:'ms',timezone:'auto'});
+  const query=new URLSearchParams({latitude:String(roundedCoordinate(location.lat)),longitude:String(roundedCoordinate(location.lng)),current:'weather_code,cloud_cover,wind_speed_10m,temperature_2m,relative_humidity_2m,visibility',daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,cloud_cover_mean',forecast_days:'3',wind_speed_unit:'ms',timezone:'auto'});
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
   try{
     const response=await fetchImpl(`${ENDPOINT}?${query}`,{signal:controller.signal,headers:{Accept:'application/json'}});
     if(!response.ok)throw new Error(`天氣服務回應 ${response.status}`);
-    return validateCurrent(await response.json());
+    const data=await response.json();
+    return {current:validateCurrent(data),daily:parseDaily(data)};
   }finally{clearTimeout(timer);}
 }
 
 function readCache(storage,key,now){
   try{
     const entry=JSON.parse(storage.getItem(CACHE_KEY));
-    if(entry&&entry.key===key&&Number.isFinite(entry.at)&&now-entry.at<STALE_MS)return {at:entry.at,current:validateCurrent({current:entry.current})};
+    if(entry&&entry.key===key&&Number.isFinite(entry.at)&&now-entry.at<STALE_MS)return {at:entry.at,current:validateCurrent({current:entry.current}),daily:parseDaily({daily:entry.daily})};
   }catch{}
   return null;
 }
-function writeCache(storage,key,at,current){try{storage.setItem(CACHE_KEY,JSON.stringify({key,at,current}));}catch{}}
+function writeCache(storage,key,at,current,daily){try{storage.setItem(CACHE_KEY,JSON.stringify({key,at,current,daily:daily&&{time:daily.map(d=>d.date),weather_code:daily.map(d=>d.code),temperature_2m_max:daily.map(d=>d.tmax),temperature_2m_min:daily.map(d=>d.tmin),precipitation_probability_max:daily.map(d=>d.pop),cloud_cover_mean:daily.map(d=>d.cloud)}}));}catch{}}
 
 // Keeps the latest weather, refreshing every 15 minutes while the page is visible. Failures never surface as errors:
 // the last good reading is kept for up to 3 hours, then the scene simply returns to clear.
@@ -96,7 +125,10 @@ export function createWeatherService({getLocation,onChange,fetchImpl,storage=glo
   function snapshot(){
     const location=getLocation();
     if(!enabled||!location)return {status:enabled?'nolocation':'off',state:null,temperature:null,updatedAt:null};
-    return {status,state:entry?mapWeather(entry.current):null,temperature:entry?entry.current.temperature_2m:null,updatedAt:entry?.at??null};
+    const current=entry?.current;
+    return {status,state:entry?mapWeather(current):null,temperature:entry?current.temperature_2m:null,updatedAt:entry?.at??null,
+      details:entry?{humidity:current.relative_humidity_2m??null,wind:current.wind_speed_10m,cloud:current.cloud_cover,visibility:current.visibility??null}:null,
+      forecast:entry?mapDaily(entry.daily):[]};
   }
   const notify=()=>onChange?.(snapshot());
   async function refresh(force=false){
@@ -111,8 +143,8 @@ export function createWeatherService({getLocation,onChange,fetchImpl,storage=glo
     status='loading';
     inflight=(async()=>{
       try{
-        const current=await fetchWeather(location,{fetchImpl});
-        entry={key,at:now(),current};writeCache(storage,key,entry.at,current);status='ok';
+        const {current,daily}=await fetchWeather(location,{fetchImpl});
+        entry={key,at:now(),current,daily};writeCache(storage,key,entry.at,current,daily);status='ok';
       }catch{
         if(entry&&now()-entry.at>=STALE_MS)entry=null;
         status='error';
