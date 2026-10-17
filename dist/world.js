@@ -758,7 +758,7 @@ export async function createWorld(container,options={}){
     const wk=weatherWorld.look;
     if(wk.gray>.001||wk.haze>.001||wk.overcast>.001){
       const fogShare=wk.fog/(wk.fog+wk.overcast*.75+1e-4);
-      weatherColor.set('#a9b4bd').lerp(tint('#cbd2d8'),fogShare).lerp(tint('#1d2638'),nightMix);
+      weatherColor.set('#a9b4bd').lerp(tint('#cbd2d8'),fogShare).lerp(tint('#7f8c98'),Math.min(1,wk.rain*.55)).lerp(tint('#1d2638'),nightMix);
       scene.background.lerp(weatherColor,wk.gray);scene.fog.color.copy(scene.background);
       scene.fog.near=THREE.MathUtils.lerp(scene.fog.near,7,wk.haze);scene.fog.far=THREE.MathUtils.lerp(scene.fog.far,58,wk.haze);
       sun.intensity*=1-.7*wk.overcast;hemi.intensity*=1-.12*wk.overcast;hemi.color.lerp(tint('#dfe6ec'),.5*wk.overcast);

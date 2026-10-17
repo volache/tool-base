@@ -22,6 +22,7 @@ for(const file of files){
         test({assert,open:async options=>{const session=await openSession(server.url,{name:`${file.replace('.test.mjs','')}-${name}`,...options});sessions.push(session);return session;},baseUrl:server.url}),
         new Promise((_,reject)=>setTimeout(()=>reject(new Error('測試逾時（180 秒）')),180000))
       ]);
+      for(const session of sessions)if(session.errors.length)throw new Error(`頁面出現 JavaScript 錯誤：\n${session.errors.slice(0,3).join('\n')}`);
       passed++;console.log(`  ✓ ${label}  (${((Date.now()-started)/1000).toFixed(1)}s)`);
     }catch(error){
       failed++;console.log(`  ✗ ${label}\n      ${String(error.message??error).split('\n').join('\n      ')}`);

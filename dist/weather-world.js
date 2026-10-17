@@ -51,7 +51,7 @@ export function createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudM
     look.wet=move(look.wet,Math.min(1,target.rain*1.2),target.rain>look.wet?.6:.12);
     look.snowCover=move(look.snowCover,Math.min(1,target.groundSnow*1.1),target.groundSnow>look.snowCover?.3:.08);
     look.overcast=Math.max(mathUtils.smoothstep(look.cloud,.3,1),look.rain*.9,look.snow*.8,look.fog*.5);
-    look.gray=Math.max(look.overcast*.75,look.fog*.9);
+    look.gray=Math.min(1,Math.max(look.overcast*.75+look.rain*.12+look.snow*.05,look.fog*.9));
     look.haze=Math.min(1,look.fog+.3*look.rain+.22*look.snow);
     easing=['cloud','rain','snow','fog','wind','rainbow'].some(key=>Math.abs(look[key]-target[key])>.002)||Math.abs(look.wet-Math.min(1,target.rain*1.2))>.002||Math.abs(look.snowCover-Math.min(1,target.groundSnow*1.1))>.002;
   }

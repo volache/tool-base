@@ -6,3 +6,5 @@ node_modules/
 
 .test-output/
 .claude/
+
+.test-output-run.log

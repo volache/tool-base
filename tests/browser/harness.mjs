@@ -70,12 +70,18 @@ export async function openSession(baseUrl,{viewport=[1400,820],location=defaultL
   const target=targets?.find(t=>t.type==='page');if(!target)throw new Error('瀏覽器沒有啟動');
   const socket=new WebSocket(target.webSocketDebuggerUrl);await new Promise(r=>socket.onopen=r);
   let nextId=0;const pending=new Map();
-  socket.onmessage=event=>{const message=JSON.parse(event.data);if(message.id&&pending.has(message.id)){pending.get(message.id)(message);pending.delete(message.id);}};
+  const errors=[];
+  socket.onmessage=event=>{
+    const message=JSON.parse(event.data);
+    if(message.id&&pending.has(message.id)){pending.get(message.id)(message);pending.delete(message.id);return;}
+    if(message.method==='Runtime.exceptionThrown')errors.push(message.params.exceptionDetails.exception?.description??message.params.exceptionDetails.text);
+    if(message.method==='Runtime.consoleAPICalled'&&message.params.type==='error')errors.push(message.params.args.map(arg=>arg.value??arg.description).join(' '));
+  };
   const send=(method,params={})=>new Promise(resolveSend=>{const id=++nextId;pending.set(id,resolveSend);socket.send(JSON.stringify({id,method,params}));});
 
   mkdirSync(outputDir,{recursive:true});
   const session={
-    send,baseUrl,
+    send,baseUrl,errors,
     async eval(expression){
       const response=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});
       if(response.result?.exceptionDetails)throw new Error(response.result.exceptionDetails.exception?.description??response.result.exceptionDetails.text);
@@ -100,6 +106,12 @@ export async function openSession(baseUrl,{viewport=[1400,820],location=defaultL
       for(let y=region[1];y<region[3];y++)for(let x=region[0];x<region[2];x++){for(let k=0;k<3;k++)sum[k]+=pixels[(y*width+x)*bytes+k];count++;}
       return sum.map(v=>Math.round(v/count));
     },
+    // Count pixels in [x0,y0,x1,y1] for which predicate(r,g,b) is true.
+    async scan(region,predicate){
+      const {width,bytes,pixels}=decodePng(await session.png());let count=0;
+      for(let y=region[1];y<region[3];y++)for(let x=region[0];x<region[2];x++){const i=(y*width+x)*bytes;if(predicate(pixels[i],pixels[i+1],pixels[i+2]))count++;}
+      return count;
+    },
     async close(){try{socket.close();}catch{}child.kill();await sleep(300);try{rmSync(profile,{recursive:true,force:true});}catch{}}
   };
 
@@ -120,3 +132,31 @@ export async function openSession(baseUrl,{viewport=[1400,820],location=defaultL
 }
 
 export function luminance([r,g,b]){return Math.round(.2126*r+.7152*g+.0722*b);}
+
+export const clearWeather={
+  current:{time:'2026-10-18T12:00',weather_code:0,cloud_cover:5,wind_speed_10m:1.5,temperature_2m:27,relative_humidity_2m:60,visibility:24000},
+  daily:sampleWeather.daily
+};
+
+// Weather that is currently dry and partly cloudy but rained `minutesAgo` minutes before `nowIso` (hourly precipitation as Open-Meteo reports it).
+export function recentRainWeather(nowIso,{minutesAgo=60,code=2,cloud=40}={}){
+  const now=Date.parse(nowIso),offset=8*3600*1000,hour=3600*1000;
+  const stamps=[];for(let i=6;i>=0;i--)stamps.push(Math.floor((now+offset)/hour)*hour-i*hour);
+  const precipitation=stamps.map(stamp=>{const end=stamp-offset;return end<=now-minutesAgo*60000&&end>now-minutesAgo*60000-hour?1.4:0;});
+  return {
+    current:{...sampleWeather.current,weather_code:code,cloud_cover:cloud},
+    daily:sampleWeather.daily,
+    utc_offset_seconds:8*3600,
+    hourly:{time:stamps.map(stamp=>new Date(stamp).toISOString().slice(0,16)),precipitation}
+  };
+}
+
+// Pick an entry in the weather preview dropdown by its label, then wait for the scene to settle.
+export async function choosePreset(page,label,settle=6500){
+  await page.run(`if(q('#settings').hidden){q('#settings-toggle').click();await w(500);}q('#weather-preview').click();await w(250);qa('#weather-preview-options li').find(li=>li.textContent.trim()===${JSON.stringify(label)}).click();await w(300);`);
+  await sleep(settle);
+}
+export async function closeSettings(page){await page.run("if(!q('#settings').hidden){q('#settings-close').click();await w(500);}");}
+
+// "oklab(0.98 0.001 0.009 / 0.97)" -> 0.98
+export const lightness=color=>Number(/\(([\d.]+)/.exec(color)?.[1]);
