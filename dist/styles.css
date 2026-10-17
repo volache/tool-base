@@ -3,6 +3,7 @@
  * genre: playful · tone: fresh, tactile, restrained · enrichment: live Three.js
  * nav: minimal brand + controls · footer: inline environment controls
  * Hallmark · pre-emit critique: P4 H5 E4 S5 R4 V5 */
+@media(max-width:600px){.bottom-bar .biome-switch{right:0;left:0}.bottom-bar .biome{flex:1;padding-inline:7px;gap:4px;letter-spacing:0;font-size:10px}.bottom-bar .biome svg{width:15px;height:15px}}
 :root{
   --color-ink:oklch(29% .037 242);--color-muted:oklch(45% .025 233);--color-paper:oklch(98% .01 90);--color-surface:oklch(98% .009 87 / .97);--color-line:oklch(45% .03 230 / .15);--color-control:oklch(99% .008 210 / .75);--color-hover:oklch(94% .015 195);--color-focus:oklch(38% .11 235);--color-accent:oklch(40% .075 153);--color-accent-ink:oklch(98% .008 150);--color-shade:oklch(36% .05 211 / .12);--color-glow:oklch(99% .008 220 / .85);--color-sky:oklch(91% .038 226);--color-transparent:transparent;--color-brand-a:#479cce;--color-brand-b:#70a372;--color-brand-c:#e3b64f;--color-brand-d:#d8887d;--color-disabled:#647781;--color-dim:oklch(21% .03 230 / .25);
   --font-display:'Trebuchet MS','Microsoft JhengHei',sans-serif;--font-body:'Microsoft JhengHei','PingFang TC',sans-serif;--space-xs:4px;--space-sm:8px;--space-md:16px;--space-lg:24px;--space-xl:32px;--space-2xl:48px;--ease:cubic-bezier(.2,.7,.2,1);

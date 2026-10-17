@@ -143,7 +143,7 @@ function setBiome(b){
   state.biome=b;
   document.querySelectorAll('[data-biome]').forEach(btn=>{const active=btn.dataset.biome===b;btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active));});
   world?.setBiome(b);
-  $('#announcer').textContent=`已切換為${({grass:'草原',desert:'沙漠',coast:'海岸'})[b]}環境`;
+  $('#announcer').textContent=`已切換為${({grass:'草原',desert:'沙漠',coast:'海岸',snow:'雪原'})[b]}環境`;
 }
 document.querySelectorAll('[data-biome]').forEach(btn=>btn.addEventListener('click',()=>setBiome(btn.dataset.biome)));
 function toggleSettings(force){const open=force??$('#settings').hidden;$('#settings').hidden=!open;$('#settings-toggle').setAttribute('aria-expanded',String(open));if(!open){closeQuality();$('#settings-toggle').focus({preventScroll:true});}}
@@ -210,7 +210,7 @@ $('#rotation-speed').addEventListener('input',e=>{
 });
 updateRotation();
 function report(stats){
-  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=state.rotation){const order=['grass','desert','coast'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
+  if(state.auto&&!state.paused){lastAuto+=stats.interval;if(lastAuto>=state.rotation){const order=['grass','desert','coast','snow'];setBiome(order[(order.indexOf(state.biome)+1)%order.length]);lastAuto=0;}}
 }
 renderTools();updatePause();updateNight();
 try{

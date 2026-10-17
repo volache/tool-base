@@ -2,6 +2,7 @@ import * as THREE from './vendor/three.module.min.js';
 import {createVolumetricFog} from './volumetric-fog.js';
 import {ensureOffscreenEndpoints} from './route-curves.js';
 import {defaultUfoRoute} from './ufo-default-route.js';
+import {createSnowWorld} from './snow-world.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
 // Instancing keeps the many brick studs and terrain pieces in a small number of draw calls.
@@ -35,7 +36,8 @@ export async function createWorld(container,options={}){
   const palettes={
     grass:{sky:'#cee5f1',ground:'#8aa968',brick:'#a8bd7c',stud:'#b4c487',hill:'#8ba991',hilltop:'#b3c5a0',path:'#d9cfac',rock:'#aab0a4',tree:'#527f58',trunk:'#c0a070',flower:'#f0a071'},
     desert:{sky:'#e8e5d9',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'},
-    coast:{sky:'#bfe0ee',ground:'#e7c98e',brick:'#efdaab',stud:'#f7e5bc',hill:'#b5d8df',hilltop:'#d8edf0',path:'#c99f69',rock:'#9aabb0',tree:'#3e8b73',trunk:'#b98155',flower:'#f4aa75'}
+    coast:{sky:'#bfe0ee',ground:'#e7c98e',brick:'#efdaab',stud:'#f7e5bc',hill:'#b5d8df',hilltop:'#d8edf0',path:'#c99f69',rock:'#9aabb0',tree:'#3e8b73',trunk:'#b98155',flower:'#f4aa75'},
+    snow:{sky:'#cbdfea',ground:'#dce9ed',brick:'#edf4f7',stud:'#f5fafb',hill:'#b5cbd7',hilltop:'#e4f0f6',path:'#cbdde5',rock:'#9ab2c1',tree:'#50776f',trunk:'#8c8076',flower:'#dce9ed'}
   };
   const materials={};
   for(const key of Object.keys(palettes.grass)){
@@ -367,6 +369,7 @@ export async function createWorld(container,options={}){
     }
     chunks.push({group,trees,cacti,palms,plants,flowerBed});
   }
+  const snowWorld=createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunkMaterial:materials.trunk});
   // Shadow casters must use the same world-space coastline as visible terrain.
   // Otherwise culled shoreline props leave floating silhouettes over the water.
   const coastDepth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
@@ -469,6 +472,7 @@ export async function createWorld(container,options={}){
     render();
   }
   function setQuality(q){
+    snowWorld.setQuality(q);
     quality=q;renderer.shadowMap.enabled=q!=='low';lowDetails.forEach(m=>m.visible=q!=='low');
     sun.shadow.mapSize.set(q==='high'?2048:1024,q==='high'?2048:1024);
     if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
@@ -597,16 +601,18 @@ export async function createWorld(container,options={}){
     container.dataset.scene=biome;
     updateWaterReflection();
     for(const [key,mat] of Object.entries(materials)){
-      if(biome==='coast')mat.color.set(palettes.coast[key]);
+      if(biome==='coast'||biome==='snow')mat.color.set(palettes[biome][key]);
       else{colorA.set(palettes.grass[key]);colorB.set(palettes.desert[key]);mat.color.copy(colorA).lerp(colorB,mix);}
     }
-    if(biome==='coast'){scene.background.set(palettes.coast.sky);scene.fog.color.set(palettes.coast.sky);}
+    if(biome==='coast'||biome==='snow'){scene.background.set(palettes[biome].sky);scene.fog.color.copy(scene.background);}
     else{colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);}
     nightSky.visible=nightMix>.001;cloudGroup.visible=nightMix<.999;
     moonMaterial.opacity=starMaterial.opacity=nightMix;whiteMat.opacity=1-nightMix;
     sea.visible=biome==='coast';
     coastUniforms.coastEnabled.value=biome==='coast'?1:0;
     coastUniforms.coastNight.value=nightMix;
+    snowWorld.setPalette(biome==='snow',nightMix);snowWorld.animate(elapsed,dino.position.y<.03);
+    dustGroup.visible=biome!=='snow';
     scene.background.lerp(tint('#101c35'),nightMix);scene.fog.color.copy(scene.background);
     blend(hemi.color,'#f2faff','#a9c9ff');blend(hemi.groundColor,'#b5ad8c','#384252');hemi.intensity=THREE.MathUtils.lerp(2.2,1.35,nightMix);
     blend(sun.color,'#fff5dc','#adcaff');sun.intensity=THREE.MathUtils.lerp(2.8,1.55,nightMix);renderer.toneMappingExposure=THREE.MathUtils.lerp(1.02,.95,nightMix);
@@ -666,10 +672,11 @@ export async function createWorld(container,options={}){
       eyes.forEach((eye,i)=>eye.scale.y=eyeHeights[i]*eyeScale);
     }
     animateUfo();
+    snowWorld.animate(elapsed,dino.position.y<.03);
     if(ufo.visible)container.dataset.skyEvent='ufo';else delete container.dataset.skyEvent;
     cloudGroup.position.x=Math.sin(elapsed*.025)*2;
     dust.forEach((p,i)=>{const t=((elapsed*1.3+i/6)%1);p.position.set((i%2-.5)*.75,.08+t*.38,.9+t*2.5);p.scale.setScalar(.08+(1-t)*.14);p.rotation.set(t*2,t*3,t);p.visible=t<.9;});
-    if(targetBiome!=='coast'&&biome!=='coast'){
+    if(['grass','desert'].includes(targetBiome)&&['grass','desert'].includes(biome)){
       const target=targetBiome==='desert'?1:0;
       if(Math.abs(mix-target)>.002){mix=THREE.MathUtils.damp(mix,target,2.2,delta);updatePalette();}
     }
