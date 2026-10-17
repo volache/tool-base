@@ -2,6 +2,12 @@ import './vendor/suncalc.js';
 import {getLocationDayBounds,getLocationMoonTimes,dayKey,readCompanyLocation} from './company-location.js';
 import {createPanoramaHeight} from './sky-projection.js';
 import {initMoonSky,getMoonSkyState,getMoonPanoramaHeight} from './moon-sky.js';
+// Warm sky strength peaks as the sun crosses the horizon; azimuth > 0 means west (dusk), otherwise east (dawn).
+const smooth=(x,a,b)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
+export function getTwilightState(state){
+  if(!state)return {amount:0,dusk:false};
+  return {amount:smooth(state.altitude,-.16,0)*(1-smooth(state.altitude,.04,.34)),dusk:state.azimuth>0};
+}
 export function getSunSkyState(time,location){const p=globalThis.SunCalc.getPosition(new Date(time),location.lat,location.lng);return {...p,tilt:0};}
 const fallbackHeight=createPanoramaHeight(getSunSkyState),referenceHeight=createPanoramaHeight(getMoonSkyState);
 let reference;

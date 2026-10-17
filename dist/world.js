@@ -659,6 +659,17 @@ export async function createWorld(container,options={}){
   const themeColors=new Map();
   const tint=value=>{if(!themeColors.has(value))themeColors.set(value,new THREE.Color(value));return themeColors.get(value);};
   const blend=(color,day,night)=>color.copy(tint(day)).lerp(tint(night),nightMix);
+  // Dawn and dusk tints follow the real sun altitude when sun tracking is on; night mode and untracked scenes stay unchanged.
+  const twilightColors={
+    dawn:{sky:'#f6c4b8',hemi:'#ffe6dc',ground:'#a58f8a',sun:'#ffc89a',cloud:'#ffd9c8',surface:'#ffcfb0'},
+    dusk:{sky:'#f09a68',hemi:'#ffd0b0',ground:'#8f7a70',sun:'#ff9456',cloud:'#ffb892',surface:'#ff9f70'}
+  };
+  let twilight={amount:0,dusk:false};
+  function syncTwilight(){
+    const next=sunWorld.getTwilight(),amount=next.amount*(1-nightMix);
+    if(sceneTransition||(Math.abs(amount-twilight.amount)<.008&&(amount>0)===(twilight.amount>0)&&next.dusk===twilight.dusk))return;
+    twilight={amount,dusk:next.dusk};updatePalette();
+  }
   function updatePalette(){
     container.dataset.scene=biome;
     updateWaterReflection();
@@ -681,6 +692,14 @@ export async function createWorld(container,options={}){
     scene.fog.near=THREE.MathUtils.lerp(58,38,nightMix);scene.fog.far=THREE.MathUtils.lerp(155,115,nightMix);
     blend(hemi.color,'#f2faff','#a9c9ff');blend(hemi.groundColor,'#b5ad8c','#384252');hemi.intensity=THREE.MathUtils.lerp(2.2,1.35,nightMix);
     blend(sun.color,'#fff5dc','#adcaff');sun.intensity=THREE.MathUtils.lerp(2.8,1.55,nightMix);renderer.toneMappingExposure=THREE.MathUtils.lerp(1.02,.95,nightMix);
+    const warm=twilight.dusk?twilightColors.dusk:twilightColors.dawn,tw=twilight.amount;
+    whiteMat.color.set('#fff9e8');sun.position.set(-18-10*tw,34-14*tw,20);
+    if(tw>0){
+      scene.background.lerp(tint(warm.sky),.78*tw);scene.fog.color.copy(scene.background);
+      hemi.color.lerp(tint(warm.hemi),.6*tw);hemi.groundColor.lerp(tint(warm.ground),.4*tw);
+      sun.color.lerp(tint(warm.sun),.85*tw);sun.intensity*=1-.22*tw;
+      whiteMat.color.lerp(tint(warm.cloud),.7*tw);
+    }
     blend(dark.color,'#535d60','#7d939e');blend(darkSide.color,'#657173','#94a9b1');
     blend(waterMat.color,'#ffffff','#62899c');beachMat.color.set('#ffffff').multiplyScalar(1-.32*nightMix);
     for(const mat of Object.values(materials))mat.color.multiplyScalar(1-.32*nightMix);
@@ -749,7 +768,7 @@ export async function createWorld(container,options={}){
     }
   }
   let last=performance.now(),lastReport=last,frames=0,raf=0;
-  function render(){updateMoonPosition();sunWorld.update(1-nightMix,elapsed);moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
+  function render(){updateMoonPosition();sunWorld.update(1-nightMix,elapsed);syncTwilight();moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000,stats={fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval};container.dataset.fps=String(stats.fps);container.dataset.drawCalls=String(stats.calls);container.dataset.triangles=String(stats.triangles);options.onStats?.(stats);lastReport=now;frames=0;}}
   function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition&&!moonTransition&&!sunWorld.isTransitioning()))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
   function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition||moonTransition||sunWorld.isTransitioning())&&!document.hidden)raf=requestAnimationFrame(tick);}
