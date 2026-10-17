@@ -110,6 +110,7 @@ export async function createWorld(container,options={}){
   const fixedMoonPosition=moon.position.clone(),moonScreen=new THREE.Vector3(),moonTarget=new THREE.Vector3();
   const sunWorld=createSunWorld(THREE,{scene,camera});
   function setSunTracking(config){sunWorld.setTracking(config);if(paused)render();requestTick();}
+  let moonTracksSky=false,reportedMix=-1;
   let moonTracking={enabled:false},moonInView=true,moonStatusSecond=-1,moonOpacity=0,moonTransition,moonOrientation=null,moonHorizon=0;
   function applyMoonVisual(target,opacity,visible,orientation=null,horizon=0){
     let shownOrientation=orientation,shownHorizon=horizon;
@@ -125,6 +126,7 @@ export async function createWorld(container,options={}){
   function updateMoonPosition(){
     const tracking=moonTracking.location&&(routePreview?routePreviewDynamic:moonTracking.enabled);
     const time=tracking?(routePreview?routePreviewTime:(moonTracking.previewTime??Date.now())):Date.now();
+    moonTracksSky=!!tracking;
     moonPhase.update(time);moonPhase.setDaylight(1-nightMix);
     if(!tracking){moonInView=true;moonPhase.material.depthTest=true;applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
     const state=getMoonSkyState(time,moonTracking.location);
@@ -703,8 +705,9 @@ export async function createWorld(container,options={}){
     }
     if(!['grass','desert'].includes(biome)){scene.background.set(palettes[biome].sky);scene.fog.color.copy(scene.background);}
     else{colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);}
-    nightSky.visible=nightMix>.001;cloudGroup.visible=nightMix<.999;
-    moonPhase.setOpacity(nightMix);starMaterial.opacity=nightMix;whiteMat.opacity=1-nightMix;
+    // A tracked moon is also visible by day, and its opacity is owned by updateMoonPosition, so neither is touched here.
+    nightSky.visible=nightMix>.001||moonTracksSky;cloudGroup.visible=nightMix<.999;
+    starMaterial.opacity=nightMix;whiteMat.opacity=1-nightMix;
     sea.visible=biome==='coast';
     coastUniforms.coastEnabled.value=biome==='coast'?1:0;
     coastUniforms.coastNight.value=nightMix;
@@ -731,6 +734,7 @@ export async function createWorld(container,options={}){
       trees.visible=biome==='grass';cacti.visible=biome==='desert';palms.visible=biome==='coast';
       plants.visible=biome==='grass';flowerBed.visible=biome==='grass';
     });
+    if(Math.abs(nightMix-reportedMix)>.001){reportedMix=nightMix;options.onSkyMix?.(nightMix);}
   }
   function animate(delta){
     elapsed+=delta;

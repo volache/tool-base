@@ -152,6 +152,7 @@ function updatePause(){
 $('#pause').addEventListener('click',()=>{state.paused=!state.paused;updatePause();});
 function updateNight(){
   document.documentElement.dataset.theme=state.night?'night':'day';
+  if(!world)document.documentElement.style.setProperty('--night',state.night?'1':'0');
   $('#night').setAttribute('aria-pressed',String(state.night));
   $('#night').setAttribute('aria-label',state.night?'切換白天模式':'切換黑夜模式');
   $('#night').title=state.night?'切換白天模式':'切換黑夜模式';
@@ -259,7 +260,7 @@ function report(stats){
 renderTools();updatePause();updateNight();
 try{
   const {createWorld}=await import('./world.js');
-  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report,onSkyNight(night){state.night=night;updateNight();}});
+  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report,onSkyNight(night){state.night=night;updateNight();},onSkyMix(mix){document.documentElement.style.setProperty('--night',mix.toFixed(3));}});
   applyAutoSky();
   $('#auto-sky').addEventListener('change',event=>{autoSky=event.target.checked;saveAutoSky();applyAutoSky();$('#announcer').textContent=autoSky?'天色已改為隨所在地時間變化':'天色已改為手動切換';});
   window.addEventListener('company-location-change',applyAutoSky);

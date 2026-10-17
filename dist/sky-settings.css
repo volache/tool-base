@@ -1,6 +1,5 @@
 /* Solid, readable panels share one type scale in both themes. */
-:root{--panel-muted:#465b68;--sun-ink:#88531c;--sun-tint:#f7edd6;--moon-ink:#355a88;--moon-tint:#e6eef9}
-:root[data-theme="night"]{--panel-muted:#c0cedc;--sun-ink:#f5cd82;--sun-tint:#493f30;--moon-ink:#bbd8ff;--moon-tint:#30465e}
+:root{--day-panel-muted:#465b68;--night-panel-muted:#c0cedc;--panel-muted:color-mix(in oklab,var(--night-panel-muted) calc(var(--night, 0) * 100%),var(--day-panel-muted));--day-sun-ink:#88531c;--night-sun-ink:#f5cd82;--sun-ink:color-mix(in oklab,var(--night-sun-ink) calc(var(--night, 0) * 100%),var(--day-sun-ink));--day-sun-tint:#f7edd6;--night-sun-tint:#493f30;--sun-tint:color-mix(in oklab,var(--night-sun-tint) calc(var(--night, 0) * 100%),var(--day-sun-tint));--day-moon-ink:#355a88;--night-moon-ink:#bbd8ff;--moon-ink:color-mix(in oklab,var(--night-moon-ink) calc(var(--night, 0) * 100%),var(--day-moon-ink));--day-moon-tint:#e6eef9;--night-moon-tint:#30465e;--moon-tint:color-mix(in oklab,var(--night-moon-tint) calc(var(--night, 0) * 100%),var(--day-moon-tint));}
 :is(.settings,.route-panel,.moon-preview,#location-dialog){font-family:'Segoe UI','Microsoft JhengHei','PingFang TC',sans-serif;font-size:14px;font-weight:400;line-height:1.6;background:var(--color-paper);text-shadow:none}
 :is(.settings,.route-panel,.moon-preview) h2{font-size:18px;font-weight:700;line-height:1.4}
 .settings,.route-panel{overflow:clip;scrollbar-gutter:auto}
