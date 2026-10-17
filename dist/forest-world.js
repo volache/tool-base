@@ -40,10 +40,12 @@ export function createForestWorld(THREE,{scene,chunks,cube,batch,random}){
   const uniforms={time:{value:0},strength:{value:0}};
   const flyMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms,toneMapped:false,
     vertexShader:`attribute float phase;varying float vGlow;uniform float time;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vGlow=.35+.65*pow(.5+.5*sin(time*1.35+phase),2.);gl_PointSize=clamp(105./-mv.z,3.,9.);gl_Position=projectionMatrix*mv;}`,
-    fragmentShader:`varying float vGlow;uniform float strength;void main(){float r=length(gl_PointCoord-.5);float glow=1.-smoothstep(.04,.5,r);gl_FragColor=vec4(1.,.88,.42,glow*vGlow*strength*.85);}`});
+    fragmentShader:`varying float vGlow;uniform float strength;void main(){vec2 p=abs(gl_PointCoord-.5);float r=max(p.x,p.y);float glow=1.-smoothstep(.16,.48,r);gl_FragColor=vec4(1.,.88,.42,glow*vGlow*strength*.85);}`});
   const flies=new THREE.Points(flyGeometry,flyMaterial);flies.frustumCulled=false;scene.add(flies);
-  const transform=new THREE.Object3D();let enabled=false;
-  function setQuality(q){driftingLeaves.count=q==='low'?10:28;flyGeometry.setDrawRange(0,q==='low'?18:48);}
+  const transform=new THREE.Object3D();let enabled=false,quality='balanced',activity=1;
+  function setQuality(q){quality=q;driftingLeaves.count=Math.round((q==='low'?10:28)*Math.min(1,activity/1.5));flyGeometry.setDrawRange(0,Math.round((q==='low'?18:48)*Math.min(1,activity/1.5)));}
+  const canopyTime={value:0};
+  for(const key of ['leaf','crown']){materials[key].onBeforeCompile=shader=>{shader.uniforms.canopyTime=canopyTime;shader.vertexShader='uniform float canopyTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.x+=sin(canopyTime*.55+instanceMatrix[3].x*.5)*.035;');};materials[key].customProgramCacheKey=()=>`forest-canopy-${key}-v1`;}
   function setPalette(active,mix){
     enabled=active;groves.forEach(g=>g.visible=active);driftingLeaves.visible=active;flies.visible=active&&mix>.02;
     for(const key of Object.keys(materials))materials[key].color.copy(day[key]).lerp(night[key],mix);
@@ -51,6 +53,7 @@ export function createForestWorld(THREE,{scene,chunks,cube,batch,random}){
   }
   function animate(time){
     if(!enabled)return;
+    canopyTime.value=time*activity;
     for(let i=0;i<driftingLeaves.count;i++){
       const p=leafSeeds[i];transform.position.set(p.x+Math.sin(time*.35+i)*1.1,15-(p.offset+time*p.speed)%15,p.z+Math.sin(time*.2+i)*.8);
       transform.rotation.set(time*.55+i,time*.3+i,Math.sin(time*.6+i)*.8);transform.scale.set(.16,.025,.24);transform.updateMatrix();driftingLeaves.setMatrixAt(i,transform.matrix);
@@ -60,5 +63,5 @@ export function createForestWorld(THREE,{scene,chunks,cube,batch,random}){
     for(let i=0;i<flySeeds.length;i++){const p=flySeeds[i];positions.setXYZ(i,p.x+Math.sin(time*.35+p.phase)*.7,p.y+Math.sin(time*.6+p.phase)*.3,p.z+Math.cos(time*.25+p.phase)*.6);}
     positions.needsUpdate=true;uniforms.time.value=time;
   }
-  return {setPalette,setQuality,animate};
+  return {setPalette,setQuality,animate,setActivity(value){activity=value;setQuality(quality);}};
 }

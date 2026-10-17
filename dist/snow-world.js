@@ -28,7 +28,8 @@ export function createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunk
   const tracks=new THREE.InstancedMesh(cube,trackMaterial,54);tracks.frustumCulled=false;belt.add(tracks);
   tracks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const prints=Array.from({length:18},()=>({born:-100,side:1}));
-  const transform=new THREE.Object3D();let lastPrint=-100,nextPrint=0,enabled=false;
+  const transform=new THREE.Object3D();let lastPrint=-100,nextPrint=0,enabled=false,activity=1,quality='balanced',lastGrounded=true,landing=-100;
+  const powder=new THREE.InstancedMesh(cube,flakesMaterial,12);powder.frustumCulled=false;belt.add(powder);
   // A quiet ribbon over the distant horizon gives the snowy night its own identity.
   const auroraUniforms={time:{value:0},strength:{value:0}};
   const auroraMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,uniforms:auroraUniforms,
@@ -36,15 +37,18 @@ export function createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunk
     fragmentShader:`varying vec2 vUv;uniform float strength;uniform float time;void main(){float edge=pow(sin(vUv.x*3.14159),.55);float curtain=pow(sin(vUv.y*3.14159),1.35);float folds=.58+.42*sin(vUv.x*72.+sin(vUv.x*11.-time*.18)*3.+time*.32);float veil=.72+.28*sin(vUv.x*19.-time*.14);vec3 c=mix(vec3(.15,.9,.61),vec3(.42,.5,1.),smoothstep(.12,.9,vUv.y));gl_FragColor=vec4(c,edge*curtain*folds*veil*strength*.42);}`});
   const aurora=new THREE.Mesh(new THREE.PlaneGeometry(124,17,110,12),auroraMaterial);aurora.position.set(7,22,-76);aurora.frustumCulled=false;scene.add(aurora);
   const daySnow=new THREE.Color('#f0f7fa'),nightSnow=new THREE.Color('#9cb6cb'),dayPine=new THREE.Color('#50776f'),nightPine=new THREE.Color('#324f62');
-  function setQuality(quality){flakes.count=quality==='low'?90:quality==='high'?260:180;}
+  function setQuality(value){quality=value;flakes.count=Math.min(260,Math.round((value==='low'?90:value==='high'?260:180)*activity));}
   function setPalette(active,night){
     if(active&&!enabled){prints.forEach(p=>p.born=-100);lastPrint=-100;}
-    enabled=active;trees.forEach(g=>g.visible=active);flakes.visible=tracks.visible=active;aurora.visible=active&&night>.01;
+    enabled=active;trees.forEach(g=>g.visible=active);flakes.visible=tracks.visible=powder.visible=active;aurora.visible=active&&night>.01;
     snowMaterial.color.copy(daySnow).lerp(nightSnow,night);pineMaterial.color.copy(dayPine).lerp(nightPine,night);
-    auroraUniforms.strength.value=night;flakesMaterial.opacity=.6+night*.18;
+    auroraUniforms.strength.value=night*Math.min(1,activity);flakesMaterial.opacity=.6+night*.18;
   }
   function animate(time,grounded=true){
     if(!enabled)return;
+    if(grounded&&!lastGrounded)landing=time;lastGrounded=grounded;
+    const age=time-landing;
+    for(let i=0;i<12;i++){const a=i/12*Math.PI*2,visible=age>=0&&age<.7;transform.position.set(Math.cos(a)*age*1.8,.04+Math.max(0,age*1.3-age*age*2.2),Math.sin(a)*age*1.8);transform.rotation.set(age+i,age*2,0);transform.scale.setScalar(visible?.10*(1-age/.7)*Math.min(1,activity):0);transform.updateMatrix();powder.setMatrixAt(i,transform.matrix);}powder.instanceMatrix.needsUpdate=true;
     for(let i=0;i<flakes.count;i++){
       const p=seeds[i];transform.position.set(p.x+Math.sin(time*.13+i)*.7+Math.sin(time*.04)*1.5,32-((p.y+time*p.speed)%32),p.z);
       transform.rotation.set(time*.2+i,time*.13+i,0);transform.scale.setScalar(p.size);transform.updateMatrix();flakes.setMatrixAt(i,transform.matrix);
@@ -61,5 +65,5 @@ export function createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunk
     }
     tracks.instanceMatrix.needsUpdate=true;auroraUniforms.time.value=time;
   }
-  return {setPalette,setQuality,animate};
+  return {setPalette,setQuality,animate,setActivity(value){activity=value;setQuality(quality);}};
 }

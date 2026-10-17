@@ -43,8 +43,8 @@
   </main>
 
   <aside id="settings" class="settings" aria-labelledby="settings-title" hidden>
-    <div class="settings-scroll">
     <div class="settings-head"><span><small class="panel-kicker">場景控制</small><h2 id="settings-title">讓背景剛剛好</h2></span><button id="settings-close" class="icon-control control" aria-label="關閉設定"><i data-lucide="x" aria-hidden="true"></i></button></div>
+    <div class="settings-scroll">
     <label id="quality-field" for="quality">畫質</label>
     <div class="quality-picker">
       <button id="quality" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="quality-options" aria-labelledby="quality-field quality-label"><i data-lucide="gauge" aria-hidden="true"></i><span id="quality-label"><strong>均衡</strong><small>清晰流暢，適合日常使用</small></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
@@ -59,6 +59,7 @@
     <button type="button" id="location-edit" class="location-edit" aria-haspopup="dialog"><i data-lucide="map-pin" aria-hidden="true"></i><span>公司所在地<small id="location-label">未設定</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
     <div id="location-moon-times" class="location-moon-times" hidden><small id="location-moon-date"></small><dl><div><dt>月升</dt><dd id="location-moon-rise"></dd></div><div><dt>月落</dt><dd id="location-moon-set"></dd></div></dl></div>
     <label class="switch-row"><span><strong>依所在地顯示月亮升落</strong><small id="moon-tracking-hint">請先設定公司所在地。</small></span><input type="checkbox" id="moon-tracking" checked disabled></label><p id="moon-sky-status">固定位置 · 當日月相</p><button id="moon-preview-start" class="moon-preview-start" type="button" disabled><i data-lucide="orbit" aria-hidden="true"></i>預覽今日月升月落</button></section>
+    <section class="settings-section sun-settings"><div class="section-label">太陽</div><div id="sun-event-times" class="location-moon-times" hidden><dl><div><dt>日出</dt><dd id="sun-rise-time"></dd></div><div><dt>日落</dt><dd id="sun-set-time"></dd></div></dl></div><label class="switch-row"><span><strong>依所在地顯示太陽升落</strong><small id="sun-tracking-hint">請先設定公司所在地。</small></span><input type="checkbox" id="sun-tracking" checked disabled></label><p id="sun-sky-status">固定位置 · 日間太陽</p><button id="sun-preview-start" class="moon-preview-start" type="button" disabled><i data-lucide="sun" aria-hidden="true"></i>預覽今日日出日落</button></section>
     <section class="settings-section scene-settings"><div class="section-label">場景</div><label class="switch-row"><span><strong>自動輪換場景</strong><small>依指定間隔切換環境</small></span><input type="checkbox" id="auto-biome"></label>
     <div id="rotation-controls" class="rotation-controls" hidden>
       <label for="rotation-speed">輪換間隔 <output id="rotation-label" for="rotation-speed">每 30 秒</output></label>
@@ -66,6 +67,7 @@
       <div class="range-limits" aria-hidden="true"><span>10 秒</span><span>2 分鐘</span></div>
     </div></section>
     <p id="render-status" class="sr-only" role="status">背景載入中</p>
+    <section class="settings-section activity-settings"><div class="section-label" id="activity-label">環境動態</div><div class="route-mode" role="group" aria-labelledby="activity-label"><button type="button" data-activity="quiet" aria-pressed="false">安靜</button><button type="button" data-activity="standard" aria-pressed="true">標準</button><button type="button" data-activity="rich" aria-pressed="false">豐富</button></div><p>調整雪花、落葉、小動物密度與飛碟出場頻率。</p></section>
     <button id="edit-ufo" class="primary" type="button" disabled><i data-lucide="route" aria-hidden="true"></i>編輯飛碟航線</button>
     </div>
   </aside>

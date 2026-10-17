@@ -1,6 +1,7 @@
 import {tools} from './tools.js';
 import {initCompanyLocation} from './company-location.js';
 import {initMoonSky} from './moon-sky.js';
+import {initSunSky} from './sun-sky.js';
 import './vendor/lucide.min.js';
 
 const $ = (s) => document.querySelector(s);
@@ -14,6 +15,10 @@ let savedRotation=30;
 try{const value=Number(localStorage.getItem('tool-portal-rotation'));if(value>=10&&value<=120)savedRotation=Math.round(value/5)*5;}catch{}
 const state = { paused: reduced.matches, biome: 'grass', quality: 'balanced', auto: false, rotation:savedRotation, night:savedNight };
 let world;
+let activityMode='standard';try{const saved=localStorage.getItem('tool-portal-activity');if(['quiet','standard','rich'].includes(saved))activityMode=saved;}catch{}
+function updateActivity(){document.querySelectorAll('button[data-activity]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.activity===activityMode)));world?.setActivity(activityMode);}
+document.querySelectorAll('button[data-activity]').forEach(button=>button.addEventListener('click',()=>{activityMode=button.dataset.activity;try{localStorage.setItem('tool-portal-activity',activityMode);}catch{}updateActivity();}));
+updateActivity();
 let iconURLs = {};
 let currentQuery = '';
 let lastTrigger;
@@ -114,7 +119,7 @@ input.addEventListener('input',transitionTools);
 $('#clear-search').addEventListener('click',()=>{input.value='';transitionTools();input.focus();});
 $('#google-search-empty').addEventListener('click',searchGoogle);
 document.addEventListener('keydown',e=>{
-  if($('#location-dialog').open||!$('#moon-preview').hidden)return;
+  if($('#location-dialog').open||!$('#moon-preview').hidden||!$('#sun-preview')?.hidden)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(dialog.open){closeDialog({focusTarget:input});return;}input.focus();input.select();}
   if(e.key==='Escape'&&!dialog.open){if(!$('#settings').hidden)toggleSettings(false);else if(currentQuery){input.value='';transitionTools();}}
 });
@@ -237,13 +242,18 @@ try{
   const {createWorld}=await import('./world.js');
   world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report});
   world.setBiome(state.biome);
+  updateActivity();
   const moonSky=initMoonSky(world,{
-    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;$('#auto-biome').checked=false;state.night=true;updateNight();return previous;},
-    endPreview(previous){Object.assign(state,previous);$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
+    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);$('#settings-toggle').disabled=true;state.auto=false;$('#auto-biome').checked=false;state.night=true;updateNight();return previous;},
+    endPreview(previous){Object.assign(state,previous);$('#settings-toggle').disabled=false;$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
+  });
+  const sunSky=initSunSky(world,{
+    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);$('#settings-toggle').disabled=true;state.auto=false;$('#auto-biome').checked=false;state.night=false;updateNight();return previous;},
+    endPreview(previous){Object.assign(state,previous);$('#settings-toggle').disabled=false;$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
   const {initRouteEditor}=await import('./route-editor.js');
   initRouteEditor(world,{
-    begin(){moonSky.stopPreview();const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
+    begin(){moonSky.stopPreview();sunSky.stopPreview();const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
     end(previous){Object.assign(state,previous);lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
   iconURLs=world.icons;
