@@ -2,7 +2,7 @@ import {splitSegment,cubicPoint,ensureOffscreenEndpoints} from './route-curves.j
 import {dynamicMoonUfoRoute} from './ufo-default-route.js';
 import {readRouteFile,exportRouteFile,defaultRouteSet} from './route-data.js';
 // A new default revision applies the owner's approved route once, while preserving subsequent edits.
-const key='tool-portal-ufo-routes-v4-approved-20261017';
+const key='tool-portal-ufo-routes-v5-approved-20261017-final';
 export function initRouteEditor(world,{begin,end}){
   const $=id=>document.getElementById(id),root=$('route-editor'),svg=$('route-overlay'),handles=$('route-handles');
   let saved,config,routes,staticRoutes,dynamicRoutes,routeIndex=0,selectedPoint=0,active=false,dragIndex=-1,dragKind='anchor',dragOffset=[0,0],previous,viewingDynamic=false;
