@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "node preview.mjs",
     "start": "node preview.mjs",
-    "check": "node --check dist/app.js && node --check dist/world.js && node --check dist/tools.js && node --check preview.mjs"
+    "check": "node -e \"const fs=require('fs');for(const f of fs.readdirSync('dist').filter(f=>f.endsWith('.js')))require('child_process').execFileSync(process.execPath,['--check','dist/'+f],{stdio:'inherit'})\" && node --check preview.mjs",
+    "test": "node -e \"const fs=require('fs');for(const f of fs.readdirSync('scripts').filter(f=>f.startsWith('check-')))require('child_process').execFileSync(process.execPath,['scripts/'+f],{stdio:'inherit'})\"",
+    "verify": "npm run check && npm run test",
+    "benchmark": "node scripts/benchmark-sky-projection.mjs"
   }
 }

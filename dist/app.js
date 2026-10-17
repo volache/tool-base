@@ -245,14 +245,12 @@ try{
   world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report});
   world.setBiome(state.biome);
   updateActivity();
-  const moonSky=initMoonSky(world,{
-    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);$('#settings-toggle').disabled=true;state.auto=false;$('#auto-biome').checked=false;state.night=true;updateNight();return previous;},
+  const skyPreview=night=>({
+    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);$('#settings-toggle').disabled=true;state.auto=false;$('#auto-biome').checked=false;state.night=night;updateNight();return previous;},
     endPreview(previous){Object.assign(state,previous);$('#settings-toggle').disabled=false;$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
-  const sunSky=initSunSky(world,{
-    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);$('#settings-toggle').disabled=true;state.auto=false;$('#auto-biome').checked=false;state.night=false;updateNight();return previous;},
-    endPreview(previous){Object.assign(state,previous);$('#settings-toggle').disabled=false;$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
-  });
+  const moonSky=initMoonSky(world,skyPreview(true));
+  const sunSky=initSunSky(world,skyPreview(false));
   const {initRouteEditor}=await import('./route-editor.js');
   initRouteEditor(world,{
     begin(){moonSky.stopPreview();sunSky.stopPreview();const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},

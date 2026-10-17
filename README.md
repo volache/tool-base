@@ -18,7 +18,7 @@ node preview.mjs
 - 搜尋名稱、中文用途與英文關鍵字；Ctrl / ⌘ + K 聚焦搜尋，Enter 或 Google 按鈕會另開 Google 查詢。
 - 目前六個工具均為範例，點擊會明確顯示尚未串接。沒有真的轉檔、查詢或提交資料。
 - 右下角積木恐龍：斜向前方原地跑，擺腿、擺臂、尾巴與身體起伏。
-- 地景斜向恐龍後方循環，草原與沙漠可立即切換。
+- 地景斜向恐龍後方循環，草原、沙漠、海岸、雪地與森林可立即切換。
 - 右上角月亮 / 太陽切換白天、黑夜：場景光線、月亮星空與介面一起變化，並在同一瀏覽器記住選擇。
 - 遠方移除方塊山；雲改為連續的柔邊輪廓。恐龍增加腹板、鼻孔、腳趾與組裝線條，仍採積木造型。
 - 暫停 / 播放；設定可選均衡、精緻、輕量，以及每 30 秒自動輪換環境。
@@ -32,13 +32,24 @@ node preview.mjs
 
 ## 檔案
 
-- dist/index.html：語意結構與設定介面。
-- dist/styles.css：積木卡片、響應式排版與設計 tokens。
+- dist/index.html、dist/styles.css：語意結構、設定介面、積木卡片與響應式排版。
 - dist/app.js：搜尋、視窗、場景控制及 3D 失敗時的替代狀態。
 - dist/tools.js：可替換的工具目錄。
 - dist/world.js：Three.js 場景、恐龍、環境循環、3D 圖示與畫質控制。
-- dist/vendor/：固定版本 Three.js 0.180.0 與 MIT 授權。
+- dist/forest-world.js、snow-world.js、sun-world.js、day-life.js、tumbleweed.js、volumetric-fog.js：各環境與氛圍效果。
+- dist/company-location.js、sky-projection.js、sun-sky.js、moon-sky.js、moon-phase.js、sky-settings.*：公司所在地、日月天空與設定面板。
+- dist/route-editor.*、route-curves.js、route-data.js、ufo-default-route.js：UFO 航線編輯與預設航線。
+- dist/vendor/：固定版本 Three.js 0.180.0、SunCalc、Lucide 與各自授權。
 - preview.mjs：只綁定本機的靜態預覽伺服器。
+- scripts/：check-*.mjs 為驗證腳本，benchmark-sky-projection.mjs 為效能微基準。
+
+## 驗證
+
+```powershell
+npm run verify
+```
+
+`npm run check` 對 dist/ 所有 JS 與 preview.mjs 做語法檢查；`npm run test` 執行 scripts/check-*.mjs。
 
 ## 原型範圍
 
@@ -48,4 +59,4 @@ node preview.mjs
 
 ## 海岸場景
 
-底部的「海岸」按鈕會切換為沙灘、棕櫚與平靜海面；黑夜模式也會套用到海岸。設定中的自動輪換會依序走訪草原、沙漠與海岸。
+底部的「海岸」按鈕會切換為沙灘、棕櫚與平靜海面；黑夜模式也會套用到海岸。設定中的自動輪換會依序走訪草原、沙漠、海岸、雪地與森林。
