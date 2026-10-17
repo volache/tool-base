@@ -121,7 +121,8 @@ document.addEventListener('keydown',e=>{
 function updatePause(){
   $('#pause').setAttribute('aria-pressed',String(state.paused));
   $('#pause-icon').replaceChildren(createIcon(state.paused?'play':'pause'));
-  $('#pause-label').textContent=state.paused?'播放動畫':'暫停動畫';
+  const label=state.paused?'播放動畫':'暫停動畫';
+  $('#pause').setAttribute('aria-label',label);$('#pause').title=label;
   world?.setPaused(state.paused);
   refreshIcons();
 }
@@ -175,7 +176,8 @@ function closeQuality(){
 }
 function selectQuality(index){
   state.quality=qualityItems[index].dataset.quality;
-  $('#quality-label').textContent=({balanced:'均衡 · 建議',high:'精緻 · 較多細節',low:'輕量 · 省電'})[state.quality];
+  const labels={balanced:['均衡','清晰流暢，適合日常使用'],high:['精緻','更細緻的陰影與畫面'],low:['輕量','降低細節，節省電力']};
+  const [name,description]=labels[state.quality];$('#quality-label').innerHTML=`<strong>${name}</strong><small>${description}</small>`;
   qualityItems.forEach((item,i)=>item.setAttribute('aria-selected',String(i===index)));
   world?.setQuality(state.quality);closeQuality();$('#quality').focus({preventScroll:true});
   $('#announcer').textContent=`畫質已設為${qualityItems[index].querySelector('strong').textContent}`;

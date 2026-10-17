@@ -46,7 +46,7 @@ export function initCompanyLocation(){
   });
   $('location-close').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();});
-  const presets={taipei:['台北',25.033,121.5654],hsinchu:['新竹',24.8039,120.9647],taichung:['台中',24.1477,120.6736],kaohsiung:['高雄',22.6273,120.3014]};
+  const presets={taipei:['台北',25.033,121.5654],taichung:['台中',24.1477,120.6736],kaohsiung:['高雄',22.6273,120.3014],hualien:['花蓮',23.9911,121.6112]};
   document.querySelectorAll('[data-location-preset]').forEach(button=>button.addEventListener('click',()=>{
     const [name,lat,lng]=presets[button.dataset.locationPreset];$('location-name').value=name;$('location-lat').value=lat;$('location-lng').value=lng;$('location-timezone').value='Asia/Taipei';$('location-message').textContent=`已填入${name}市中心座標，可調整後儲存。`;
   }));

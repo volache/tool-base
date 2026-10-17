@@ -19,7 +19,7 @@
     <div class="clock" aria-label="目前時間"><time id="current-time">--:--</time><span id="current-date"></span></div>
     <div class="header-controls">
       <button id="night" class="control icon-control" aria-label="切換黑夜模式" aria-pressed="false" title="切換黑夜模式"><i data-lucide="moon" aria-hidden="true"></i></button>
-      <button id="pause" class="control" aria-pressed="false"><span id="pause-icon" aria-hidden="true"><i data-lucide="pause"></i></span><span id="pause-label">暫停動畫</span></button>
+      <button id="pause" class="control icon-control" aria-label="暫停動畫" title="暫停動畫" aria-pressed="false"><span id="pause-icon" aria-hidden="true"><i data-lucide="pause"></i></span></button>
       <button id="settings-toggle" class="control icon-control" aria-label="顯示設定" aria-expanded="false" aria-controls="settings"><i data-lucide="settings" aria-hidden="true"></i></button>
     </div>
   </header>
@@ -45,7 +45,7 @@
     <div class="settings-head"><h2 id="settings-title">讓背景剛剛好</h2><button id="settings-close" class="icon-control control" aria-label="關閉設定"><i data-lucide="x" aria-hidden="true"></i></button></div>
     <label id="quality-field" for="quality">畫質</label>
     <div class="quality-picker">
-      <button id="quality" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="quality-options" aria-labelledby="quality-field quality-label"><span id="quality-label">均衡 · 建議</span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
+      <button id="quality" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="quality-options" aria-labelledby="quality-field quality-label"><i data-lucide="gauge" aria-hidden="true"></i><span id="quality-label"><strong>均衡</strong><small>清晰流暢，適合日常使用</small></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
       <ul id="quality-options" role="listbox" aria-labelledby="quality-field" hidden>
         <li id="quality-balanced" role="option" aria-selected="true" data-quality="balanced"><span><strong>均衡</strong><small>清晰流暢，適合日常使用</small></span><i data-lucide="check" aria-hidden="true"></i></li>
         <li id="quality-high" role="option" aria-selected="false" data-quality="high"><span><strong>精緻</strong><small>更細緻的陰影與畫面</small></span><i data-lucide="check" aria-hidden="true"></i></li>
@@ -94,6 +94,7 @@
   <aside id="moon-preview" class="moon-preview" aria-labelledby="moon-preview-title" hidden>
     <div class="moon-preview-head"><span><small>天空全景預覽</small><h2 id="moon-preview-title">今日月升月落</h2></span><time id="moon-preview-time"></time></div><p id="moon-preview-location"></p><label for="moon-preview-range">預覽時間</label><input id="moon-preview-range" type="range" min="0" max="1440" step="1" value="0"><div class="moon-preview-limits"><span>00:00</span><span>24:00</span></div><div class="moon-preview-actions"><button id="moon-preview-rise" type="button">查看月升</button><button id="moon-preview-set" type="button">查看月落</button></div><p id="moon-preview-motion-hint"></p><p class="moon-preview-note">全景展示一天的軌跡；方位範圍經過縮放，即時模式依實際鏡頭視野呈現。</p><div class="moon-preview-actions"><button id="moon-preview-play" type="button" aria-pressed="false">播放預覽</button><button id="moon-preview-stop" type="button">回到即時天空</button></div>
   </aside>
+  <svg id="moon-preview-path" class="moon-preview-path" aria-hidden="true" hidden><path></path></svg><div id="moon-preview-compass" class="moon-preview-compass" aria-hidden="true" hidden><span>東 E · 月升</span><span>西 W · 月落</span></div>
   <footer class="bottom-bar">
     <div class="footer-note"><span class="small-mark" aria-hidden="true"><i data-lucide="blocks"></i></span><span>一點童心，一起開工。</span></div>
     <div class="biome-switch" role="group" aria-label="背景環境"><button class="biome active" data-biome="grass" aria-pressed="true"><i data-lucide="trees" aria-hidden="true"></i>草原</button><button class="biome" data-biome="desert" aria-pressed="false"><i data-lucide="mountain" aria-hidden="true"></i>沙漠</button><button class="biome" data-biome="coast" aria-pressed="false"><i data-lucide="waves" aria-hidden="true"></i>海岸</button><button class="biome" data-biome="snow" aria-pressed="false"><i data-lucide="snowflake" aria-hidden="true"></i>雪原</button><button class="biome" data-biome="forest" aria-pressed="false"><i data-lucide="tree-pine" aria-hidden="true"></i>森林</button></div>
@@ -113,7 +114,7 @@
     <button id="location-close" type="button" class="dialog-close icon-control control" aria-label="關閉所在地設定"><i data-lucide="x" aria-hidden="true"></i></button>
     <span class="dialog-kicker">天空設定</span><h2 id="location-title">公司所在地</h2><p>設定月升、月落的計算地點。儲存在此瀏覽器，無需開啟定位。</p>
     <form id="location-form">
-      <div class="location-presets" aria-label="快速填入城市中心座標"><button type="button" data-location-preset="taipei">台北</button><button type="button" data-location-preset="hsinchu">新竹</button><button type="button" data-location-preset="taichung">台中</button><button type="button" data-location-preset="kaohsiung">高雄</button></div>
+      <div class="location-presets" aria-label="快速填入城市中心座標"><button type="button" data-location-preset="taipei">台北</button><button type="button" data-location-preset="taichung">台中</button><button type="button" data-location-preset="kaohsiung">高雄</button><button type="button" data-location-preset="hualien">花蓮</button></div>
       <label for="location-name">地點名稱<input id="location-name" type="text" maxlength="40" placeholder="例如：台北辦公室" autocomplete="off"></label>
       <div class="location-coordinates"><label for="location-lat">緯度<input id="location-lat" type="number" min="-90" max="90" step="any" required placeholder="25.033"></label><label for="location-lng">經度<input id="location-lng" type="number" min="-180" max="180" step="any" required placeholder="121.5654"></label></div>
       <label for="location-timezone">所在地時區<input id="location-timezone" type="text" required maxlength="64" value="Asia/Taipei" autocomplete="off" spellcheck="false"></label><small class="location-hint">時區範例：Asia/Taipei、Asia/Tokyo</small>

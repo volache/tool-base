@@ -115,7 +115,8 @@ export async function createWorld(container,options={}){
     moonPhase.material.depthTest=!preview;
     if(preview){
       const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
-      moon.position.set(state.azimuth/Math.PI*1.5,.02+Math.sin(state.altitude)*.84,depth).unproject(camera);
+      const skyHeight=Math.pow(Math.max(0,Math.sin(state.altitude)),.62)*1.12;
+      moon.position.set(state.azimuth/Math.PI*1.5,.025+skyHeight,depth).unproject(camera);
       moonPhase.setHorizon(2,.02);
     }else{moon.position.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
     moonPhase.setOrientation(state.tilt);moonPhase.setOpacity(.65+.35*nightMix);
