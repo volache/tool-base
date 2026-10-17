@@ -1,6 +1,7 @@
 import {tools} from './tools.js';
 import {initCompanyLocation,readCompanyLocation} from './company-location.js';
 import {getSkyNight} from './sky-model.js';
+import {createWeatherService,weatherPresets,weatherLabels} from './weather.js';
 import {initMoonSky} from './moon-sky.js';
 import {initSunSky} from './sun-sky.js';
 import {initSkySettings} from './sky-settings.js';
@@ -264,6 +265,29 @@ try{
   applyAutoSky();
   $('#auto-sky').addEventListener('change',event=>{autoSky=event.target.checked;saveAutoSky();applyAutoSky();$('#announcer').textContent=autoSky?'天色已改為隨所在地時間變化':'天色已改為手動切換';});
   window.addEventListener('company-location-change',applyAutoSky);
+  // Weather: real conditions for the company location (on by default); the preview menu overrides them for this visit only.
+  let weatherOn=true,weatherOverride='';
+  try{weatherOn=localStorage.getItem('tool-portal-weather')!=='false';}catch{}
+  const weatherClock=new Intl.DateTimeFormat('zh-TW',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+  const weatherService=createWeatherService({getLocation:readCompanyLocation,onChange:renderWeather});
+  function renderWeather(snapshot=weatherService.snapshot()){
+    const location=readCompanyLocation();
+    $('#weather-link').checked=weatherOn;$('#weather-link').disabled=!location;
+    let text;
+    if(weatherOverride)text=`預覽：${weatherLabels[weatherOverride]}`;
+    else if(!location)text='請先設定公司所在地。';
+    else if(!weatherOn)text='已關閉，背景維持晴朗';
+    else if(snapshot.state){
+      text=`${weatherLabels[snapshot.state.kind]} · ${Math.round(snapshot.temperature)}°C · ${weatherClock.format(snapshot.updatedAt)} 更新`;
+      if(snapshot.status==='error')text+='（暫時無法更新）';
+    }else text=snapshot.status==='error'?'暫時無法取得天氣，先顯示晴朗':'取得天氣中…';
+    $('#weather-status').textContent=text;
+    world.setWeather(weatherOverride?weatherPresets[weatherOverride]:(weatherOn&&location?snapshot.state:null));
+  }
+  $('#weather-link').addEventListener('change',event=>{weatherOn=event.target.checked;try{localStorage.setItem('tool-portal-weather',String(weatherOn));}catch{}weatherService.setEnabled(weatherOn);renderWeather();$('#announcer').textContent=weatherOn?'已開啟天氣連動':'已關閉天氣連動';});
+  $('#weather-preview').addEventListener('change',event=>{weatherOverride=event.target.value;renderWeather();});
+  window.addEventListener('company-location-change',()=>{weatherService.refresh();renderWeather();});
+  weatherService.setEnabled(weatherOn);weatherService.start();renderWeather();
   world.setBiome(state.biome);
   updateActivity();
   const skyPreview=()=>({

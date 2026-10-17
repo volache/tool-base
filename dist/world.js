@@ -8,6 +8,8 @@ import {createMoonPhase} from './moon-phase.js';
 import {getMoonSkyState,getMoonPanoramaHeight} from './moon-sky.js';
 import {createSunWorld} from './sun-world.js';
 import {getSkyNight,getTwilightState} from './sky-model.js';
+import {createWeatherWorld} from './weather-world.js';
+import {adaptToBiome} from './weather.js';
 import {createDayLife} from './day-life.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
@@ -128,14 +130,14 @@ export async function createWorld(container,options={}){
     const time=tracking?(routePreview?routePreviewTime:(moonTracking.previewTime??Date.now())):Date.now();
     moonTracksSky=!!tracking;
     moonPhase.update(time);moonPhase.setDaylight(1-nightMix);
-    if(!tracking){moonInView=true;moonPhase.material.depthTest=true;applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
+    if(!tracking){moonInView=true;moonPhase.material.depthTest=true;applyMoonVisual(fixedMoonPosition,nightMix*(1-.7*weatherWorld.look.overcast),true);return;}
     const state=getMoonSkyState(time,moonTracking.location);
     // Live time and preview time use the same panorama projection and horizon.
     moonPhase.material.depthTest=false;
     const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
     moonTarget.set(state.azimuth/Math.PI*1.5,getMoonPanoramaHeight(state,time,moonTracking.location),depth).unproject(camera);
     const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
-    applyMoonVisual(moonTarget,(.52+.48*nightMix)*horizonFade,state.altitude>-.09,state.tilt,2);
+    applyMoonVisual(moonTarget,(.52+.48*nightMix)*horizonFade*(1-.7*weatherWorld.look.overcast),state.altitude>-.09,state.tilt,2);
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
     nightSky.visible=true;
@@ -432,6 +434,10 @@ export async function createWorld(container,options={}){
   const forestWorld=createForestWorld(THREE,{scene,chunks,cube,batch,random});
   const groundSpeed=2.65;
   const dayLife=createDayLife(THREE,{scene,belt,cube,random,groundSpeed});
+  const weatherWorld=createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial:whiteMat});
+  let weatherState=null,lastWeatherSync=0,cloudPhase=0;
+  const weatherApplied={overcast:-1,gray:-1,haze:-1,wet:-1,snowCover:-1,flash:-1};
+  const weatherColor=new THREE.Color();
   // Shadow casters must use the same world-space coastline as visible terrain.
   // Otherwise culled shoreline props leave floating silhouettes over the water.
   const coastDepth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
@@ -536,14 +542,14 @@ export async function createWorld(container,options={}){
   function setQuality(q){
     snowWorld.setQuality(q);
     forestWorld.setQuality(q);
-    dayLife.setQuality(q);
+    dayLife.setQuality(q);weatherWorld.setQuality(q);
     quality=q;renderer.shadowMap.enabled=q!=='low';lowDetails.forEach(m=>m.visible=q!=='low');
     sun.shadow.mapSize.set(q==='high'?2048:1024,q==='high'?2048:1024);
     if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
     renderer.shadowMap.needsUpdate=true;resize();
   }
-  function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{render();report(true);}}
-  function setActivity(mode){const previous=activity;activity=({quiet:.35,standard:1,rich:1.5})[mode]??1;if(!routePreview)nextUfoAt=elapsed+Math.max(0,nextUfoAt-elapsed)*previous/activity;snowWorld.setActivity(activity);forestWorld.setActivity(activity);dayLife.setActivity(activity);container.dataset.activity=mode;updatePalette();if(paused)render();}
+  function setPaused(p){paused=p;last=performance.now();lastReport=last;frames=0;if(!p)requestTick();else{weatherWorld.calm();render();report(true);}}
+  function setActivity(mode){const previous=activity;activity=({quiet:.35,standard:1,rich:1.5})[mode]??1;if(!routePreview)nextUfoAt=elapsed+Math.max(0,nextUfoAt-elapsed)*previous/activity;snowWorld.setActivity(activity);forestWorld.setActivity(activity);dayLife.setActivity(activity);weatherWorld.setActivity(activity);container.dataset.activity=mode;updatePalette();if(paused)render();}
   // One finite volume moves continuously through the 45-degree running axis.
   const mistUniforms={tint:{value:new THREE.Color()}};
   const groundMist={mistSeal:{value:0},mistFront:{value:-65},mistBack:{value:-185},mistAnchor:{value:new THREE.Vector2()}};
@@ -566,11 +572,20 @@ export async function createWorld(container,options={}){
     requestTick();
   }
   function commitBiome(b){
-    biome=b;targetBiome=b;
+    biome=b;targetBiome=b;weatherWorld.setTarget(adaptToBiome(weatherState,biome));
     mix=b==='desert'?1:0;
     updatePalette();
     alignCoastMotion();
     layoutCoastProps();
+  }
+  function setWeather(state){weatherState=state||null;weatherWorld.setTarget(adaptToBiome(weatherState,biome));if(paused)render();requestTick();}
+  function syncWeather(){
+    const now=performance.now(),dt=Math.min(.1,(now-lastWeatherSync)/1000);lastWeatherSync=now;
+    weatherWorld.ease(dt);
+    if(sceneTransition)return;
+    const look=weatherWorld.look;let changed=false;
+    for(const key of Object.keys(weatherApplied))if(Math.abs(look[key]-weatherApplied[key])>(key==='flash'?.02:.004)){changed=true;break;}
+    if(changed){for(const key of Object.keys(weatherApplied))weatherApplied[key]=look[key];updatePalette();}
   }
   function setNight(value){
     if(skyDriven)return;
@@ -676,14 +691,15 @@ export async function createWorld(container,options={}){
   function setAutoSky(location){autoSkyLocation=location||null;syncSky();requestTick();}
   function setSkyPreview(config){skyPreview=config||null;syncSky();requestTick();}
   function syncSky(){
-    if(sceneTransition)return;
     const source=skyPreview||(autoSkyLocation&&{location:autoSkyLocation,time:Date.now()});
     const now=performance.now(),dt=Math.min(.1,(now-lastSkySync)/1000);lastSkySync=now;
+    // Releasing the sky clock must never wait for a scene change, or a manual day/night switch made meanwhile would be lost.
     if(!source){
       skyDriven=false;skyEasing=false;
-      if(twilight.amount>0){twilight={amount:0,dusk:false};updatePalette();}
+      if(twilight.amount>0&&!sceneTransition){twilight={amount:0,dusk:false};updatePalette();}
       return;
     }
+    if(sceneTransition)return;
     const position=globalThis.SunCalc.getPosition(new Date(source.time),source.location.lat,source.location.lng);
     const target=getSkyNight(position.altitude),glow=getTwilightState(position);
     skyDriven=true;themeTransition=undefined;
@@ -727,9 +743,27 @@ export async function createWorld(container,options={}){
       sun.color.lerp(tint(warm.sun),.85*tw);sun.intensity*=1-.22*tw;
       whiteMat.color.lerp(tint(warm.cloud),.7*tw);
     }
+    const wk=weatherWorld.look;
+    if(wk.gray>.001||wk.haze>.001||wk.overcast>.001){
+      const fogShare=wk.fog/(wk.fog+wk.overcast*.75+1e-4);
+      weatherColor.set('#a9b4bd').lerp(tint('#cbd2d8'),fogShare).lerp(tint('#1d2638'),nightMix);
+      scene.background.lerp(weatherColor,wk.gray);scene.fog.color.copy(scene.background);
+      scene.fog.near=THREE.MathUtils.lerp(scene.fog.near,7,wk.haze);scene.fog.far=THREE.MathUtils.lerp(scene.fog.far,58,wk.haze);
+      sun.intensity*=1-.7*wk.overcast;hemi.intensity*=1-.12*wk.overcast;hemi.color.lerp(tint('#dfe6ec'),.5*wk.overcast);
+      whiteMat.color.lerp(tint('#6f7b88'),.78*wk.overcast);
+    }
+    if(wk.flash>.001){
+      scene.background.lerp(tint('#e6eeff'),.7*wk.flash);scene.fog.color.copy(scene.background);
+      hemi.intensity+=3.2*wk.flash;sun.intensity+=1.5*wk.flash;whiteMat.color.lerp(tint('#ffffff'),wk.flash);
+    }
     blend(dark.color,'#535d60','#7d939e');blend(darkSide.color,'#657173','#94a9b1');
     blend(waterMat.color,'#ffffff','#62899c');beachMat.color.set('#ffffff').multiplyScalar(1-.32*nightMix);
     for(const mat of Object.values(materials))mat.color.multiplyScalar(1-.32*nightMix);
+    if(wk.wet>.001||wk.snowCover>.001){
+      // Wet ground darkens; fallen snow slowly whitens the scene's surfaces.
+      const snowTone=weatherColor.set('#f0f7fa').multiplyScalar(1-.32*nightMix);
+      for(const mat of Object.values(materials)){mat.color.multiplyScalar(1-.2*wk.wet);if(wk.snowCover>.001)mat.color.lerp(snowTone,.62*wk.snowCover);}
+    }
     chunks.forEach(({trees,cacti,palms,plants,flowerBed})=>{
       trees.visible=biome==='grass';cacti.visible=biome==='desert';palms.visible=biome==='coast';
       plants.visible=biome==='grass';flowerBed.visible=biome==='grass';
@@ -788,7 +822,8 @@ export async function createWorld(container,options={}){
     forestWorld.animate(elapsed);
     dayLife.animate(elapsed);
     if(ufo.visible)container.dataset.skyEvent='ufo';else delete container.dataset.skyEvent;
-    cloudGroup.position.x=Math.sin(elapsed*.025*activity)*2;
+    const weatherLook=weatherWorld.look;weatherWorld.animate(delta,nightMix);dayLife.setWind(weatherLook.wind);
+    cloudPhase+=delta*.025*activity*(1+3*weatherLook.wind);cloudGroup.position.x=Math.sin(cloudPhase)*2;cloudGroup.scale.setScalar(1+.3*weatherLook.overcast);
     dust.forEach((p,i)=>{const t=((elapsed*1.3+i/6)%1);p.position.set((i%2-.5)*.75,.08+t*.38,.9+t*2.5);p.scale.setScalar(.08+(1-t)*.14);p.rotation.set(t*2,t*3,t);p.visible=t<.9&&i<Math.ceil(4*activity);});
     if(['grass','desert'].includes(targetBiome)&&['grass','desert'].includes(biome)){
       const target=targetBiome==='desert'?1:0;
@@ -796,10 +831,10 @@ export async function createWorld(container,options={}){
     }
   }
   let last=performance.now(),lastReport=last,frames=0,raf=0;
-  function render(){updateMoonPosition();sunWorld.update(1-nightMix,elapsed);syncSky();moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
+  function render(){updateMoonPosition();sunWorld.update((1-nightMix)*(1-.8*weatherWorld.look.overcast),elapsed);syncSky();syncWeather();moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000,stats={fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval};container.dataset.fps=String(stats.fps);container.dataset.drawCalls=String(stats.calls);container.dataset.triangles=String(stats.triangles);options.onStats?.(stats);lastReport=now;frames=0;}}
-  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition&&!moonTransition&&!skyEasing&&!sunWorld.isTransitioning()))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
-  function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition||moonTransition||skyEasing||sunWorld.isTransitioning())&&!document.hidden)raf=requestAnimationFrame(tick);}
+  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition&&!moonTransition&&!skyEasing&&!weatherWorld.isEasing()&&!sunWorld.isTransitioning()))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
+  function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition||moonTransition||skyEasing||weatherWorld.isEasing()||sunWorld.isTransitioning())&&!document.hidden)raf=requestAnimationFrame(tick);}
   window.addEventListener('resize',resize);
   document.addEventListener('visibilitychange',()=>{last=performance.now();lastReport=last;frames=0;if(document.hidden){cancelAnimationFrame(raf);raf=0;}else{render();requestTick();}});
   renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(raf);raf=0;document.querySelector('#render-status').textContent='3D 畫面暫時中斷；工具入口仍可使用。';});
@@ -812,7 +847,7 @@ export async function createWorld(container,options={}){
   nightSky.visible=cloudGroup.visible=true;
   try{await renderer.compileAsync(scene,camera);}finally{nightSky.visible=skyVisible;cloudGroup.visible=cloudsVisible;}
   last=performance.now();report(true);requestTick();
-  return {icons,setPaused,setBiome,setQuality,setActivity,setNight,setAutoSky,setSkyPreview,isNight:()=>night,setMoonTracking,setSunTracking,getUfoRoute,setUfoRoute,setUfoRoutes,getUfoGuide,previewUfoRoute};
+  return {icons,setWeather,setPaused,setBiome,setQuality,setActivity,setNight,setAutoSky,setSkyPreview,isNight:()=>night,setMoonTracking,setSunTracking,getUfoRoute,setUfoRoute,setUfoRoutes,getUfoGuide,previewUfoRoute};
 
   function makeIcons(sharedRenderer){
     const result={};const iconScene=new THREE.Scene();

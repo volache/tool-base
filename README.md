@@ -37,6 +37,7 @@ node preview.mjs
 - dist/tools.js：可替換的工具目錄。
 - dist/world.js：Three.js 場景、恐龍、環境循環、3D 圖示與畫質控制。
 - dist/forest-world.js、snow-world.js、sun-world.js、day-life.js、tumbleweed.js、volumetric-fog.js：各環境與氛圍效果。
+- dist/weather.js、weather-world.js：天氣資料（抓取、驗證、快取）與天氣畫面（雨、雪、雲、閃電）。
 - dist/company-location.js、sky-model.js、sky-projection.js、sun-sky.js、moon-sky.js、moon-phase.js、sky-settings.*：公司所在地、日月天空與設定面板。
 - dist/route-editor.*、route-curves.js、route-data.js、ufo-default-route.js：UFO 航線編輯與預設航線。
 - dist/vendor/：固定版本 Three.js 0.180.0、SunCalc、Lucide 與各自授權。
@@ -56,6 +57,14 @@ npm run verify
 設定公司所在地後，天色預設隨所在地的真實太陽高度連續變化：夜晚 → 黎明（粉橘）→ 白天 → 黃昏（橘紅）→ 夜晚。晨昏的時間由當天的日出日落自然決定，不使用固定時刻。即時模式與月亮、太陽預覽共用同一套天色計算，預覽某個時間點看到的天色，就是即時模式在該時間點的樣子。預覽播放在晨昏時會自動放慢，方便觀賞。
 
 設定中的「天色隨所在地變化」可關閉；關閉後，或按右上角月亮／太陽按鈕，會改為手動切換日夜。未設定所在地時一律為手動。
+
+## 天氣
+
+設定公司所在地後，背景會依該地點的真實天氣變化（預設開啟，可在設定中關閉）：晴、多雲、陰、霧、毛毛雨、下雨、下雪、雷雨與大風。天氣資料來自 Open-Meteo（免金鑰），每 15 分鐘更新一次並快取在瀏覽器；查詢只送出四捨五入到小數 2 位的經緯度，不含任何金鑰或個人資料。網路失敗時會沿用最近一次資料（最久 3 小時），之後回到晴天，不影響工具入口。
+
+天氣會與場景互相配合：雪地下雨會改為下雪，沙漠下雪會改為陰天；下雪時地面會逐漸變白，下雨時地面變濕、太陽與月亮變淡，大風會讓雲與滾草加快。雷雨閃光限制為每 5 秒最多一次，系統要求減少動態時不閃光、不顯示雨雪粒子。粒子數量隨畫質（輕量／均衡／精緻）調整。
+
+設定中的「天氣預覽」可手動選擇任一天氣來檢視效果，只在本次瀏覽有效。商業或正式部署前，請確認 Open-Meteo 的使用條款是否符合貴公司的使用情境。
 
 ## 原型範圍
 

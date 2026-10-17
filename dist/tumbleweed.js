@@ -23,12 +23,15 @@ export function createTumbleweeds(THREE,{belt,cube,groundSpeed=2.65}){
   for(const twig of twigs)twig.orientation=new THREE.Quaternion().setFromUnitVectors(up,twig.direction);
   const centers=twigs.map(()=>new THREE.Vector3()),directions=twigs.map(()=>new THREE.Vector3());
   let count=2;mesh.count=count*twigs.length;
+  // Wind pushes the weeds forward: the extra travel is integrated so a gust never makes them jump.
+  let wind=0,windTime=0,lastTime=0;
   function animate(time){
+    windTime+=Math.max(0,time-lastTime)*wind*1.6;lastTime=time;const shifted=time+windTime;
     for(let i=0;i<count;i++){
-      const scale=[1,.82,.92][i],radius=.5*scale,speed=1.05+i*.17,travel=time*speed+i*45+60,z=travel%135-75;
+      const scale=[1,.82,.92][i],radius=.5*scale,speed=1.05+i*.17,travel=shifted*speed+i*45+60,z=travel%135-75;
       const x=(i%2?-1:1)*(15+i*8);
       // The terrain belt moves too: rolling is relative to that ground, not the camera.
-      axis.set(1,0,0);roll.setFromAxisAngle(axis,time*(speed-groundSpeed)/radius+i*1.7);
+      axis.set(1,0,0);roll.setFromAxisAngle(axis,(shifted*speed-time*groundSpeed)/radius+i*1.7);
       let bottom=Infinity;
       for(let j=0;j<twigs.length;j++){
         const twig=twigs[j],c=centers[j].copy(twig.center).applyQuaternion(roll).multiplyScalar(scale),d=directions[j].copy(twig.direction).applyQuaternion(roll);
@@ -40,5 +43,5 @@ export function createTumbleweeds(THREE,{belt,cube,groundSpeed=2.65}){
     }
     mesh.instanceMatrix.needsUpdate=true;
   }
-  return {mesh,animate,setCount(value){count=Math.min(3,Math.max(1,value));mesh.count=count*twigs.length;}};
+  return {mesh,animate,setWind(value){wind=value;},setCount(value){count=Math.min(3,Math.max(1,value));mesh.count=count*twigs.length;}};
 }

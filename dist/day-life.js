@@ -20,5 +20,5 @@ export function createDayLife(THREE,{scene,belt,cube,random,groundSpeed}){
     if(patches.visible)for(let i=0;i<patches.count;i++){const p=seeds[i],s=.8+Math.sin(time*.32+p.phase)*.2;write(patches,i,p.x+Math.sin(time*.17+p.phase)*.6,-.278,p.z,1.8*s,.008,.8*s,0,p.phase+Math.sin(time*.2)*.15,0);}
     for(const mesh of [wings,birds,tumble,patches])if(mesh.visible)mesh.instanceMatrix.needsUpdate=true;
   }
-  return {animate,setPalette(b,mix){biome=b;night=mix;configure();},setActivity(value){activity=value;configure();},setQuality(value){quality=value;configure();}};
+  return {animate,setWind(value){tumbleweeds.setWind(value);},setPalette(b,mix){biome=b;night=mix;configure();},setActivity(value){activity=value;configure();},setQuality(value){quality=value;configure();}};
 }
