@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
 import {createVolumetricFog} from './volumetric-fog.js';
-import {fromLoop} from './route-curves.js';
+import {fromLoop,ensureOffscreenEndpoints} from './route-curves.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
 // Instancing keeps the many brick studs and terrain pieces in a small number of draw calls.
@@ -102,12 +102,12 @@ export async function createWorld(container,options={}){
   const ufoLights=new THREE.MeshBasicMaterial({color:'#f2df99',fog:false,toneMapped:false});
   for(let i=0;i<6;i++){const a=i/6*Math.PI*2;box(ufo,Math.cos(a)*.84,-.12,Math.sin(a)*.84,.16,.1,.16,ufoLights,false);}
   let nextUfoAt=12,ufoFlight,ufoRoute=0;
-  let customUfoCurve,ufoDuration=16,routePreview=false,customUfoRoutes=[];
+  let customUfoCurve,ufoDuration=16,routePreview=false,customUfoRoutes=[],ufoRouteConfigs=[],previewUfoConfig;
   const flightPosition=new THREE.Vector3(),flightTangent=new THREE.Vector3();
   function createUfoFlight(){
     const index=ufoRoute++;
     if(customUfoRoutes.length){const route=customUfoRoutes[index%customUfoRoutes.length];customUfoCurve=route.curve;ufoDuration=route.duration;}
-    return {start:elapsed,duration:ufoDuration,variant:index%3,radius:5+random(),phase:random()*.4};
+    return {start:elapsed,duration:ufoDuration,variant:0,radius:5.5,phase:0,routeIndex:index};
   }
   function sampleUfoFlight(flight,t,target){
     const {variant,radius,phase}=flight,direction=variant===1?-1:1;
@@ -131,8 +131,6 @@ export async function createWorld(container,options={}){
     const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
     if(t>=1){ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+(routePreview?1.2:45+random()*45);return;}
     ufo.visible=true;
-    const opacity=THREE.MathUtils.smoothstep(t,0,.035)*(1-THREE.MathUtils.smoothstep(t,.965,1));
-    for(const material of [saucerMat,domeMat,ufoLights]){material.transparent=true;material.opacity=opacity;}
     sampleUfoFlight(ufoFlight,t,flightPosition);
     sampleUfoFlight(ufoFlight,Math.min(1,t+.0001),flightTangent).sub(flightPosition).normalize();
     ufo.position.copy(moon.position).add(flightPosition);
@@ -141,17 +139,18 @@ export async function createWorld(container,options={}){
     ufo.rotation.z=THREE.MathUtils.damp(ufo.rotation.z,bank,4,Math.min(.05,elapsed-(ufoFlight.last??elapsed)));
     ufo.rotation.x=.08+Math.sin(t*Math.PI*4)*.035;ufoFlight.last=elapsed;
   }
-  function getUfoRoute(variant=0){
+  function getUfoRoute(){
     const center=moon.position.clone().project(camera),points=[];
     for(let i=0;i<8;i++){
-      const a=i/8*Math.PI*2,p=new THREE.Vector3((variant===2?7:5.5)*Math.cos(a),(variant===1?2.3*Math.sin(a*2)+.9*Math.sin(a):2.8*Math.sin(a)),0).add(moon.position).project(camera);
+      const a=i/8*Math.PI*2,p=new THREE.Vector3(5.5*Math.cos(a),2.8*Math.sin(a),0).add(moon.position).project(camera);
       points.push([(p.x-center.x)/2,(center.y-p.y)/2]);
     }
-    return {nodes:fromLoop(points,[.98-(center.x+1)/2,.1-(1-center.y)/2],[.025-(center.x+1)/2,.25-(1-center.y)/2]),duration:16};
+    return {nodes:fromLoop(points,[1.12-(center.x+1)/2,.1-(1-center.y)/2],[-.12-(center.x+1)/2,.25-(1-center.y)/2]),duration:16};
   }
   function buildUfoCurve(config){
     if(config?.nodes?.length>=3){
       const center=moon.position.clone().project(camera);
+      ensureOffscreenEndpoints(config,[(center.x+1)/2,(1-center.y)/2]);
       const convert=([x,y])=>new THREE.Vector3(center.x+x*2,center.y-y*2,center.z).unproject(camera).sub(moon.position);
       const curve=new THREE.CurvePath();
       for(let i=0;i<config.nodes.length-1;i++){
@@ -164,12 +163,13 @@ export async function createWorld(container,options={}){
     }
   }
   function setUfoRoute(config){
-    customUfoRoutes=[];customUfoCurve=buildUfoCurve(config);ufoDuration=config?.duration??16;
+    ufoRouteConfigs=[];previewUfoConfig=config;customUfoRoutes=[];customUfoCurve=buildUfoCurve(config);ufoDuration=config?.duration??16;
     ufoFlight=undefined;nextUfoAt=elapsed;
     requestTick();
   }
   function setUfoRoutes(routes){
-    customUfoRoutes=(routes??[]).map(route=>({curve:buildUfoCurve(route),duration:route.duration})).filter(route=>route.curve);
+    previewUfoConfig=undefined;ufoRouteConfigs=routes??[];
+    customUfoRoutes=ufoRouteConfigs.map(route=>({curve:buildUfoCurve(route),duration:route.duration})).filter(route=>route.curve);
     customUfoCurve=undefined;ufoDuration=16;ufoRoute=0;ufoFlight=undefined;nextUfoAt=elapsed;requestTick();
   }
   function getUfoGuide(){
@@ -445,6 +445,11 @@ export async function createWorld(container,options={}){
     w=container.clientWidth;h=container.clientHeight;
     camera.aspect=w/h;camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+    if(previewUfoConfig)customUfoCurve=buildUfoCurve(previewUfoConfig);
+    else if(ufoRouteConfigs.length){
+      customUfoRoutes=ufoRouteConfigs.map(route=>({curve:buildUfoCurve(route),duration:route.duration}));
+      if(ufoFlight)customUfoCurve=customUfoRoutes[ufoFlight.routeIndex%customUfoRoutes.length].curve;
+    }
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,quality==='high'?1.8:quality==='low'?1:1.35));
     renderer.setSize(w,h,false);
     volumeFog.resize();

@@ -71,6 +71,9 @@
       <div class="route-actions route-manage"><button id="route-add" type="button">新增航線</button><button id="route-delete" type="button">刪除此航線</button></div>
       <p>編號為完整飛行順序，第一點進場、最後一點離場。選取航點後，拖曳藍色把手調整弧度；Alt 拖曳可獨立調整。雙擊曲線新增航點。</p>
       <div class="route-actions"><button id="point-add" type="button">新增航點</button><button id="point-delete" type="button">刪除航點</button><button id="point-mode" type="button" aria-pressed="true">平滑航點</button></div><small id="point-status" role="status"></small>
+      <div class="route-actions"><button id="point-entry" type="button">選取進場點</button><button id="point-exit" type="button">選取離場點</button></div>
+      <div class="point-position"><label for="point-x">水平位置（%）<input id="point-x" type="number" min="-50" max="150" step="0.1"></label><label for="point-y">垂直位置（%）<input id="point-y" type="number" min="-50" max="150" step="0.1"></label></div>
+      <small>0–100% 為畫面範圍；虛線圓點是畫面外航點的選取標記。</small>
       <label for="ufo-duration">完整飛行時間 <output id="ufo-duration-label">16 秒</output></label>
       <input id="ufo-duration" type="range" min="8" max="28" step="1" value="16">
       <small>秒數越少，速度越快；包含進場、繞月與離場。</small>

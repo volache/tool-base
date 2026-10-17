@@ -24,3 +24,14 @@ export function migrateRoute(route,moon){
   if(route.nodes)return route;
   return {name:route.name,duration:route.duration,nodes:fromLoop(route.points,[.98-moon[0],.1-moon[1]],[.025-moon[0],.25-moon[1]])};
 }
+export function ensureOffscreenEndpoints(route,moon,margin=.1){
+  if(!route?.nodes?.length)return route;
+  for(const node of [route.nodes[0],route.nodes.at(-1)]){
+    const x=moon[0]+node.p[0],y=moon[1]+node.p[1];
+    if(x<=-margin||x>=1+margin||y<=-margin||y>=1+margin)continue;
+    const distances=[x,1-x,y,1-y],edge=distances.indexOf(Math.min(...distances));
+    if(edge<2)node.p[0]=(edge===0?-margin:1+margin)-moon[0];
+    else node.p[1]=(edge===2?-margin:1+margin)-moon[1];
+  }
+  return route;
+}
