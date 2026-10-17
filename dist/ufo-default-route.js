@@ -170,3 +170,14 @@ export const defaultUfoRoute = {
   ],
   "duration": 12
 };
+
+// The tracked moon moves across the whole sky. This route passes through the scene
+// instead of orbiting a moving target, so it keeps a readable, continuous silhouette.
+export const dynamicMoonUfoRoute={
+  name:'月亮升落航線',duration:12,nodes:[
+    {p:[.74,.19],in:[0,0],out:[-.22,-.08],smooth:true},
+    {p:[.29,.04],in:[.10,.05],out:[-.13,-.11],smooth:true},
+    {p:[-.12,-.08],in:[.12,.09],out:[-.17,.06],smooth:true},
+    {p:[-.69,.16],in:[.2,-.08],out:[0,0],smooth:true}
+  ]
+};

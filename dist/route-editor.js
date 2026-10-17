@@ -102,16 +102,17 @@ export function initRouteEditor(world,{begin,end}){
   function scheduleDraft(){if(!pendingFrame)pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;if(active)applyDraft();});}
   function open(){
     if(active)return;active=true;previous=begin();routes=copy(saved?.routes??defaults());routeIndex=0;selectedPoint=0;config=routes[0];routeTabs();
-    root.hidden=false;document.querySelectorAll('header,main,footer,#settings').forEach(el=>el.inert=true);
+    root.hidden=false;root.classList.remove('is-closing');root.classList.add('is-opening');requestAnimationFrame(()=>root.classList.remove('is-opening'));document.querySelectorAll('header,main,footer,#settings').forEach(el=>el.inert=true);
     world.previewUfoRoute(true);applyDraft();const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
     $('route-replay').disabled=reduced;
     $('route-status').textContent=reduced?'已依系統偏好停止動畫，仍可編輯與匯出航線。':'儲存後依序輪換所有航線，僅套用在此瀏覽器。';$('route-close').focus();
   }
   function close(){
-    if(!active)return;active=false;dragIndex=-1;closeRoutePicker();root.hidden=true;
+    if(!active)return;active=false;dragIndex=-1;closeRoutePicker();root.classList.add('is-closing');
     if(pendingFrame){cancelAnimationFrame(pendingFrame);pendingFrame=0;}
     document.querySelectorAll('header,main,footer,#settings').forEach(el=>el.inert=false);
-    world.previewUfoRoute(false);world.setUfoRoutes(saved?.routes??defaults());end(previous);$('settings-toggle').focus();
+    world.previewUfoRoute(false);world.setUfoRoutes(saved?.routes??defaults());end(previous);
+    setTimeout(()=>{root.hidden=true;root.classList.remove('is-closing');$('settings-toggle').focus();},190);
   }
   function move(index,x,y){
     const guide=world.getUfoGuide(),{width,height}=svg.getBoundingClientRect();
@@ -193,7 +194,6 @@ export function initRouteEditor(world,{begin,end}){
     if(!Number.isFinite(x)||!Number.isFinite(y))return;
     move(selectedPoint,x/100,y/100);
   });
-  $('route-collapse').addEventListener('click',()=>{const panel=root.querySelector('.route-panel'),collapsed=panel.classList.toggle('compact');$('route-collapse').textContent=collapsed?'展開面板':'收合面板';$('route-collapse').setAttribute('aria-expanded',String(!collapsed));});
   $('route-name').addEventListener('input',event=>{config.name=event.target.value.slice(0,24);routeTabs();});
   $('route-add').addEventListener('click',()=>{
     if(routes.length>=12)return;

@@ -151,13 +151,23 @@ function setBiome(b){
   $('#announcer').textContent=`已切換為${({grass:'草原',desert:'沙漠',coast:'海岸',snow:'雪原',forest:'森林'})[b]}環境`;
 }
 document.querySelectorAll('[data-biome]').forEach(btn=>btn.addEventListener('click',()=>setBiome(btn.dataset.biome)));
-function toggleSettings(force){const open=force??$('#settings').hidden;$('#settings').hidden=!open;$('#settings-toggle').setAttribute('aria-expanded',String(open));if(!open){closeQuality();$('#settings-toggle').focus({preventScroll:true});}}
+let settingsCloseTimer=0;
+function toggleSettings(force){
+  const panel=$('#settings'),open=force??(panel.hidden||panel.classList.contains('is-closing'));
+  clearTimeout(settingsCloseTimer);
+  if(open){panel.hidden=false;panel.classList.remove('is-closing');requestAnimationFrame(()=>panel.classList.add('is-open'));}
+  else{
+    closeQuality();panel.classList.remove('is-open');panel.classList.add('is-closing');
+    settingsCloseTimer=setTimeout(()=>{panel.hidden=true;panel.classList.remove('is-closing');$('#settings-toggle').focus({preventScroll:true});},190);
+  }
+  $('#settings-toggle').setAttribute('aria-expanded',String(open));
+}
 $('#settings-toggle').addEventListener('click',()=>toggleSettings());
 $('#settings-close').addEventListener('click',()=>toggleSettings(false));
 document.addEventListener('pointerdown',e=>{
   if($('#location-dialog').open)return;
   if(!$('.quality-picker').contains(e.target))closeQuality();
-  if(!$('#settings').hidden&&!$('#settings').contains(e.target)&&!$('#settings-toggle').contains(e.target)){$('#settings').hidden=true;$('#settings-toggle').setAttribute('aria-expanded','false');}
+  if(!$('#settings').hidden&&!$('#settings').contains(e.target)&&!$('#settings-toggle').contains(e.target))toggleSettings(false);
 });
 const qualityItems=[...document.querySelectorAll('[data-quality]')];
 let qualityActive=0;

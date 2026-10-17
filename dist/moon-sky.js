@@ -9,7 +9,7 @@ export function getMoonSkyState(time,location){
 
 export function initMoonSky(world,{beginPreview,endPreview}){
   const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-motion: reduce)');
-  let location=readCompanyLocation(),enabled=true,preview=false,playing=false,bounds,previewTime,previewEvents,previous,lastFrame=0,raf=0;
+  let location=readCompanyLocation(),enabled=true,preview=false,playing=false,bounds,previewTime,previewEvents,previous,lastFrame=0,raf=0,previewCloseTimer=0;
   try{enabled=localStorage.getItem('tool-portal-moon-tracking')!=='false';}catch{}
   function status(state){
     if(!location)return;
@@ -38,11 +38,13 @@ export function initMoonSky(world,{beginPreview,endPreview}){
     for(let i=0;i<=96;i++){
       const state=getMoonSkyState(bounds.start+(bounds.end-bounds.start)*i/96,location),sinAltitude=Math.sin(state.altitude);
       if(state.altitude<-.03){parts.push(null);continue;}
-      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=(1-(.025+Math.pow(Math.max(0,sinAltitude),.62)*1.12))*height/2;
+      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=(1-(.025+sinAltitude*1.62))*height/2;
       parts.push([x,y]);
     }
-    let penUp=true,d='';for(const point of parts){if(!point){penUp=true;continue;}d+=`${penUp?'M':'L'}${point[0].toFixed(1)} ${point[1].toFixed(1)} `;penUp=false;}
+    let penUp=true,d='',first,last;for(const point of parts){if(!point){penUp=true;continue;}if(!first)first=point;last=point;d+=`${penUp?'M':'L'}${point[0].toFixed(1)} ${point[1].toFixed(1)} `;penUp=false;}
     $('moon-preview-path').setAttribute('viewBox',`0 0 ${width} ${height}`);$('moon-preview-path').querySelector('path').setAttribute('d',d);
+    const labels=[...$('moon-preview-compass').children];
+    [[first,labels[0]],[last,labels[1]]].forEach(([point,label])=>{if(!point||!label)return;label.style.left=`${Math.max(14,Math.min(width-114,point[0]-48))}px`;label.style.top=`${Math.max(72,Math.min(height-42,point[1]-42))}px`;});
   }
   function frame(now){
     raf=0;if(!preview||!playing)return;
@@ -52,14 +54,17 @@ export function initMoonSky(world,{beginPreview,endPreview}){
     timeLabel();apply();if(playing)raf=requestAnimationFrame(frame);
   }
   function stopPreview(){
-    if(!preview)return;cancelAnimationFrame(raf);raf=0;playing=false;preview=false;$('moon-preview').hidden=true;$('moon-preview-compass').hidden=true;$('moon-preview-path').setAttribute('hidden','');
-    apply();endPreview(previous);$('moon-preview-start').focus({preventScroll:true});
+    if(!preview)return;cancelAnimationFrame(raf);raf=0;playing=false;preview=false;
+    const panel=$('moon-preview');panel.classList.remove('is-opening');panel.classList.add('is-closing');
+    clearTimeout(previewCloseTimer);previewCloseTimer=setTimeout(()=>{panel.hidden=true;panel.classList.remove('is-closing');},190);
+    $('moon-preview-compass').hidden=true;$('moon-preview-path').setAttribute('hidden','');apply();endPreview(previous);$('moon-preview-start').focus({preventScroll:true});
   }
   $('moon-tracking').addEventListener('change',event=>{enabled=event.target.checked;try{localStorage.setItem('tool-portal-moon-tracking',String(enabled));}catch{}apply();});
   $('moon-preview-start').addEventListener('click',()=>{
     if(!location||preview)return;bounds=getLocationDayBounds(location);previewEvents=getLocationMoonTimes(location);previewTime=bounds.start;preview=true;playing=!reduced.matches;previous=beginPreview();
     $('moon-preview-rise').disabled=!previewEvents.rise;$('moon-preview-set').disabled=!previewEvents.set;
-    $('moon-preview').hidden=false;$('moon-preview-compass').hidden=false;$('moon-preview-path').removeAttribute('hidden');drawPath();$('moon-preview-play').disabled=reduced.matches;$('moon-preview-motion-hint').textContent=reduced.matches?'已依減少動態效果偏好停止播放，可拖曳時間。':'東方在畫面左側，月亮由左向右升起、落下。';
+    const panel=$('moon-preview');clearTimeout(previewCloseTimer);panel.hidden=false;panel.classList.remove('is-closing');panel.classList.add('is-opening');requestAnimationFrame(()=>panel.classList.remove('is-opening'));
+    $('moon-preview-compass').hidden=false;$('moon-preview-path').removeAttribute('hidden');drawPath();$('moon-preview-play').disabled=reduced.matches;$('moon-preview-motion-hint').textContent=reduced.matches?'已依減少動態效果偏好停止播放，可拖曳時間。':'東方在畫面左側，月亮由左向右升起、落下。';
     timeLabel();apply();$('moon-preview-range').focus();lastFrame=0;if(playing)raf=requestAnimationFrame(frame);
   });
   $('moon-preview-play').addEventListener('click',()=>{if(!preview)return;playing=!playing;if(playing&&previewTime>=bounds.end-1)previewTime=bounds.start;lastFrame=0;timeLabel();cancelAnimationFrame(raf);if(playing)raf=requestAnimationFrame(frame);});

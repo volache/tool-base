@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import {createVolumetricFog} from './volumetric-fog.js';
 import {ensureOffscreenEndpoints} from './route-curves.js';
-import {defaultUfoRoute} from './ufo-default-route.js';
+import {defaultUfoRoute,dynamicMoonUfoRoute} from './ufo-default-route.js';
 import {createSnowWorld} from './snow-world.js';
 import {createForestWorld} from './forest-world.js';
 import {createMoonPhase} from './moon-phase.js';
@@ -103,26 +103,35 @@ export async function createWorld(container,options={}){
   const nightSky=new THREE.Group();scene.add(nightSky);
   const moonPhase=createMoonPhase(THREE);
   const moon=new THREE.Mesh(new THREE.SphereGeometry(1.35,48,32),moonPhase.material);moon.position.set(23,18,-48);nightSky.add(moon);
-  const fixedMoonPosition=moon.position.clone(),moonScreen=new THREE.Vector3();
-  let moonTracking={enabled:false},moonInView=true,moonStatusSecond=-1;
+  const fixedMoonPosition=moon.position.clone(),moonScreen=new THREE.Vector3(),moonTarget=new THREE.Vector3();
+  let moonTracking={enabled:false},moonInView=true,moonStatusSecond=-1,moonOpacity=0,moonTransition;
+  function applyMoonVisual(target,opacity,visible){
+    if(moonTransition){
+      const progress=THREE.MathUtils.clamp((performance.now()-moonTransition.started)/420,0,1),ease=THREE.MathUtils.smootherstep(progress,0,1);
+      moon.position.lerpVectors(moonTransition.position,target,ease);
+      moonOpacity=THREE.MathUtils.lerp(moonTransition.opacity,opacity,ease);
+      moon.visible=progress<1||visible;
+      if(progress>=1)moonTransition=undefined;
+    }else{moon.position.copy(target);moonOpacity=opacity;moon.visible=visible;}
+    moonPhase.setOpacity(moonOpacity);
+  }
   function updateMoonPosition(){
     const tracking=moonTracking.enabled&&moonTracking.location&&!routePreview;
     const time=tracking?(moonTracking.previewTime??Date.now()):Date.now();
     moonPhase.update(time);
-    if(!tracking){moon.position.copy(fixedMoonPosition);moon.visible=true;moonInView=true;moonPhase.material.depthTest=true;moonPhase.setOrientation(null);moonPhase.setHorizon(0);moonPhase.setOpacity(nightMix);return;}
+    if(!tracking){moonInView=true;moonPhase.material.depthTest=true;moonPhase.setOrientation(null);moonPhase.setHorizon(0);applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
     const state=getMoonSkyState(time,moonTracking.location),preview=moonTracking.previewTime!=null;
     // The panorama has a screen-space horizon; the live sky uses terrain depth.
     moonPhase.material.depthTest=!preview;
     if(preview){
       const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
       // Keep the moon moving below the horizon so its limb is revealed progressively.
-      const sinAltitude=Math.sin(state.altitude),skyHeight=Math.sign(sinAltitude)*Math.pow(Math.abs(sinAltitude),.62)*1.12;
-      moon.position.set(state.azimuth/Math.PI*1.5,.025+skyHeight,depth).unproject(camera);
+      const sinAltitude=Math.sin(state.altitude),skyHeight=sinAltitude*1.62;
+      moonTarget.set(state.azimuth/Math.PI*1.5,.025+skyHeight,depth).unproject(camera);
       moonPhase.setHorizon(2,.02);
-    }else{moon.position.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
+    }else{moonTarget.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
     const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
-    moonPhase.setOrientation(state.tilt);moonPhase.setOpacity((.65+.35*nightMix)*horizonFade);
-    moon.visible=state.altitude>-.09;
+    moonPhase.setOrientation(state.tilt);applyMoonVisual(moonTarget,(.65+.35*nightMix)*horizonFade,state.altitude>-.09);
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
     nightSky.visible=true;
@@ -130,6 +139,7 @@ export async function createWorld(container,options={}){
   }
   function setMoonTracking(config){
     const modeChanged=moonTracking.enabled!==config.enabled||(moonTracking.previewTime==null)!==(config.previewTime==null)||moonTracking.location!==config.location;
+    if(modeChanged)moonTransition={started:performance.now(),position:moon.position.clone(),opacity:moonOpacity};
     moonTracking=config;if(modeChanged){ufoFlight=undefined;ufo.visible=false;moonStatusSecond=-1;}
     if(paused)render();requestTick();
   }
@@ -151,7 +161,7 @@ export async function createWorld(container,options={}){
   function createUfoFlight(){
     const index=ufoRoute++;
     if(customUfoRoutes.length){const route=customUfoRoutes[index%customUfoRoutes.length];customUfoCurve=route.curve;ufoDuration=route.duration;}
-    if(moonTracking.enabled&&!routePreview&&ufoRouteConfigs.length)customUfoCurve=buildUfoCurve(structuredClone(ufoRouteConfigs[index%ufoRouteConfigs.length]));
+    if(moonTracking.enabled&&!routePreview){customUfoCurve=buildUfoCurve(structuredClone(dynamicMoonUfoRoute));ufoDuration=dynamicMoonUfoRoute.duration;}
     return {start:elapsed,duration:ufoDuration,variant:0,radius:5.5,phase:0,routeIndex:index,anchor:moon.position.clone()};
   }
   function sampleUfoFlight(flight,t,target){
@@ -725,8 +735,8 @@ export async function createWorld(container,options={}){
   let last=performance.now(),lastReport=last,frames=0,raf=0;
   function render(){updateMoonPosition();moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000;options.onStats?.({fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval});lastReport=now;frames=0;}}
-  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
-  function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
+  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition&&!moonTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
+  function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition||moonTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
   window.addEventListener('resize',resize);
   document.addEventListener('visibilitychange',()=>{last=performance.now();lastReport=last;frames=0;if(document.hidden){cancelAnimationFrame(raf);raf=0;}else{render();requestTick();}});
   renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(raf);raf=0;document.querySelector('#render-status').textContent='3D 畫面暫時中斷；工具入口仍可使用。';});
