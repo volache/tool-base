@@ -11,10 +11,11 @@ export function getMoonPhase(date=new Date()){
 
 export function createMoonPhase(THREE){
   const localLight=new THREE.Vector3(),baseLight=new THREE.Vector3(),towardViewer=new THREE.Vector3(),screenRight=new THREE.Vector3(),screenUp=new THREE.Vector3();
-  const uniforms={lightDirection:{value:new THREE.Vector3()},opacity:{value:1},litColor:{value:new THREE.Color('#fff3ce')},darkColor:{value:new THREE.Color('#1b2941')},horizonMode:{value:0},horizonY:{value:0}};
+  const dayLit=new THREE.Color('#edf6fa'),nightLit=new THREE.Color('#fff3ce');
+  const uniforms={lightDirection:{value:new THREE.Vector3()},opacity:{value:1},daylight:{value:0},litColor:{value:nightLit.clone()},darkColor:{value:new THREE.Color('#1b2941')},horizonMode:{value:0},horizonY:{value:0}};
   const material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,toneMapped:false,uniforms,
     vertexShader:`varying vec3 vNormal;varying float vHeight;varying vec4 vClip;void main(){vNormal=normalize(normalMatrix*normal);vHeight=(modelMatrix*vec4(position,1.)).y-cameraPosition.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);vClip=gl_Position;}`,
-    fragmentShader:`varying vec3 vNormal;varying float vHeight;varying vec4 vClip;uniform float horizonMode;uniform float horizonY;uniform vec3 lightDirection;uniform vec3 litColor;uniform vec3 darkColor;uniform float opacity;void main(){if(horizonMode>.5&&horizonMode<1.5&&vHeight<0.)discard;if(horizonMode>1.5&&vClip.y/vClip.w<horizonY)discard;float sunlight=dot(normalize(vNormal),lightDirection);float terminator=smoothstep(-.018,.018,sunlight);vec3 color=mix(darkColor,litColor*(.88+.12*max(sunlight,0.)),terminator);gl_FragColor=vec4(color,opacity);
+    fragmentShader:`varying vec3 vNormal;varying float vHeight;varying vec4 vClip;uniform float horizonMode;uniform float horizonY;uniform vec3 lightDirection;uniform vec3 litColor;uniform vec3 darkColor;uniform float opacity;uniform float daylight;void main(){if(horizonMode>.5&&horizonMode<1.5&&vHeight<0.)discard;if(horizonMode>1.5&&vClip.y/vClip.w<horizonY)discard;float sunlight=dot(normalize(vNormal),lightDirection);float terminator=smoothstep(-.018,.018,sunlight);vec3 nightColor=mix(darkColor,litColor*(.88+.12*max(sunlight,0.)),terminator);vec3 color=mix(nightColor,litColor,daylight);float alpha=opacity*mix(1.,terminator,daylight);gl_FragColor=vec4(color,alpha);
     #include <colorspace_fragment>
     }`});
   let lastMinute=-1;
@@ -35,5 +36,5 @@ export function createMoonPhase(THREE){
     uniforms.lightDirection.value.copy(towardViewer).multiplyScalar(localLight.z).addScaledVector(screenRight,localLight.x).addScaledVector(screenUp,localLight.y);
   }
   function setOrientation(angle){localLight.copy(baseLight);if(angle==null)return;const magnitude=Math.sqrt(Math.max(0,1-localLight.z**2));localLight.x=-Math.sin(angle)*magnitude;localLight.y=Math.cos(angle)*magnitude;}
-  return {material,update,updateView,setOrientation,setOpacity:value=>uniforms.opacity.value=value,setHorizon:(mode,y=0)=>{uniforms.horizonMode.value=mode;uniforms.horizonY.value=y;}};
+  return {material,update,updateView,setOrientation,setDaylight:value=>{uniforms.daylight.value=THREE.MathUtils.clamp(value,0,1);uniforms.litColor.value.copy(nightLit).lerp(dayLit,uniforms.daylight.value);},setOpacity:value=>uniforms.opacity.value=value,setHorizon:(mode,y=0)=>{uniforms.horizonMode.value=mode;uniforms.horizonY.value=y;}};
 }

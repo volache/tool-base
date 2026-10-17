@@ -3,7 +3,7 @@ export function createSunWorld(THREE,{scene,camera}){
   const uniforms={opacity:{value:1},warmth:{value:0},horizon:{value:0}};
   const material=new THREE.ShaderMaterial({transparent:true,depthTest:false,depthWrite:false,toneMapped:false,uniforms,
     vertexShader:'varying vec4 vClip;void main(){vec4 p=vec4(position,1.);\n#ifdef USE_INSTANCING\np=instanceMatrix*p;\n#endif\ngl_Position=projectionMatrix*modelViewMatrix*p;vClip=gl_Position;}',
-    fragmentShader:'varying vec4 vClip;uniform float opacity,warmth,horizon;void main(){if(horizon>.5&&vClip.y/vClip.w<.02)discard;vec3 c=mix(vec3(1.,.83,.35),vec3(1.,.47,.22),warmth);gl_FragColor=vec4(c,opacity);#include <colorspace_fragment>}'.replace('#include','\n#include')});
+    fragmentShader:'varying vec4 vClip;uniform float opacity,warmth,horizon;void main(){if(horizon>.5&&vClip.y/vClip.w<.02)discard;vec3 c=mix(vec3(1.,.67,.12),vec3(1.,.34,.08),warmth);gl_FragColor=vec4(c,opacity);#include <colorspace_fragment>}'.replace('#include','\n#include')});
   const group=new THREE.Group();scene.add(group);
   group.add(new THREE.Mesh(new THREE.SphereGeometry(1.22,16,10),material));
   const rays=new THREE.InstancedMesh(new THREE.BoxGeometry(.23,.65,.18),material,8),dummy=new THREE.Object3D();group.add(rays);

@@ -40,11 +40,11 @@ export async function createWorld(container,options={}){
   let night=!!options.night;
   let nightMix=night?1:0,themeTransition;
   const palettes={
-    grass:{sky:'#cee5f1',ground:'#8aa968',brick:'#a8bd7c',stud:'#b4c487',hill:'#8ba991',hilltop:'#b3c5a0',path:'#d9cfac',rock:'#aab0a4',tree:'#527f58',trunk:'#c0a070',flower:'#f0a071'},
-    desert:{sky:'#e8e5d9',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'},
-    coast:{sky:'#bfe0ee',ground:'#e7c98e',brick:'#efdaab',stud:'#f7e5bc',hill:'#b5d8df',hilltop:'#d8edf0',path:'#c99f69',rock:'#9aabb0',tree:'#3e8b73',trunk:'#b98155',flower:'#f4aa75'},
-    snow:{sky:'#cbdfea',ground:'#dce9ed',brick:'#edf4f7',stud:'#f5fafb',hill:'#b5cbd7',hilltop:'#e4f0f6',path:'#cbdde5',rock:'#9ab2c1',tree:'#50776f',trunk:'#8c8076',flower:'#dce9ed'},
-    forest:{sky:'#c7dcd5',ground:'#8c9b73',brick:'#a5af82',stud:'#bbc39b',hill:'#6d8a75',hilltop:'#93ad8c',path:'#b6a17c',rock:'#9aab98',tree:'#497451',trunk:'#8c7354',flower:'#ba955f'}
+    grass:{sky:'#acd5ec',ground:'#8aa968',brick:'#a8bd7c',stud:'#b4c487',hill:'#8ba991',hilltop:'#b3c5a0',path:'#d9cfac',rock:'#aab0a4',tree:'#527f58',trunk:'#c0a070',flower:'#f0a071'},
+    desert:{sky:'#ccdfe8',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'},
+    coast:{sky:'#a8d4e9',ground:'#e7c98e',brick:'#efdaab',stud:'#f7e5bc',hill:'#b5d8df',hilltop:'#d8edf0',path:'#c99f69',rock:'#9aabb0',tree:'#3e8b73',trunk:'#b98155',flower:'#f4aa75'},
+    snow:{sky:'#bed9e9',ground:'#dce9ed',brick:'#edf4f7',stud:'#f5fafb',hill:'#b5cbd7',hilltop:'#e4f0f6',path:'#cbdde5',rock:'#9ab2c1',tree:'#50776f',trunk:'#8c8076',flower:'#dce9ed'},
+    forest:{sky:'#bbd7df',ground:'#8c9b73',brick:'#a5af82',stud:'#bbc39b',hill:'#6d8a75',hilltop:'#93ad8c',path:'#b6a17c',rock:'#9aab98',tree:'#497451',trunk:'#8c7354',flower:'#ba955f'}
   };
   const materials={};
   for(const key of Object.keys(palettes.grass)){
@@ -123,7 +123,7 @@ export async function createWorld(container,options={}){
   function updateMoonPosition(){
     const tracking=moonTracking.location&&(routePreview?routePreviewDynamic:moonTracking.enabled);
     const time=tracking?(routePreview?routePreviewTime:(moonTracking.previewTime??Date.now())):Date.now();
-    moonPhase.update(time);
+    moonPhase.update(time);moonPhase.setDaylight(1-nightMix);
     if(!tracking){moonInView=true;moonPhase.material.depthTest=true;moonPhase.setOrientation(null);moonPhase.setHorizon(0);applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
     const state=getMoonSkyState(time,moonTracking.location);
     // Live time and preview time use the same panorama projection and horizon.
@@ -132,7 +132,7 @@ export async function createWorld(container,options={}){
     moonTarget.set(state.azimuth/Math.PI*1.5,getMoonPanoramaHeight(state,time,moonTracking.location),depth).unproject(camera);
     moonPhase.setHorizon(2,.02);
     const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
-    moonPhase.setOrientation(state.tilt);applyMoonVisual(moonTarget,(.65+.35*nightMix)*horizonFade,state.altitude>-.09);
+    moonPhase.setOrientation(state.tilt);applyMoonVisual(moonTarget,(.52+.48*nightMix)*horizonFade,state.altitude>-.09);
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
     nightSky.visible=true;
@@ -613,7 +613,7 @@ export async function createWorld(container,options={}){
     if(!sceneTransition)return;
     const next=pendingBiome||sceneTransition.to;
     sceneTransition=undefined;pendingBiome=undefined;
-    commitBiome(next);scene.fog.near=38;scene.fog.far=115;delete container.dataset.transition;
+    commitBiome(next);scene.fog.near=THREE.MathUtils.lerp(58,38,nightMix);scene.fog.far=THREE.MathUtils.lerp(155,115,nightMix);delete container.dataset.transition;
   }
   function alignCoastMotion(){
     // Keep the established heading and travel direction identical in every biome.
@@ -677,6 +677,7 @@ export async function createWorld(container,options={}){
     dayLife.setPalette(biome,nightMix);dayLife.animate(elapsed);
     dustGroup.visible=biome!=='snow';
     scene.background.lerp(tint('#101c35'),nightMix);scene.fog.color.copy(scene.background);
+    scene.fog.near=THREE.MathUtils.lerp(58,38,nightMix);scene.fog.far=THREE.MathUtils.lerp(155,115,nightMix);
     blend(hemi.color,'#f2faff','#a9c9ff');blend(hemi.groundColor,'#b5ad8c','#384252');hemi.intensity=THREE.MathUtils.lerp(2.2,1.35,nightMix);
     blend(sun.color,'#fff5dc','#adcaff');sun.intensity=THREE.MathUtils.lerp(2.8,1.55,nightMix);renderer.toneMappingExposure=THREE.MathUtils.lerp(1.02,.95,nightMix);
     blend(dark.color,'#535d60','#7d939e');blend(darkSide.color,'#657173','#94a9b1');
