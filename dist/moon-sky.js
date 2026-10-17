@@ -9,7 +9,7 @@ export function getMoonSkyState(time,location){
 }
 
 export const getMoonPanoramaHeight=createPanoramaHeight(getMoonSkyState);
-export function initMoonSky(world,{beginPreview,endPreview},{kind='moon',readState=getMoonSkyState,getHeight=getMoonPanoramaHeight,getHorizontal=state=>state.azimuth/Math.PI*1.5,pathState=readState,pathHeight=getHeight,pathHorizontal=getHorizontal,getEvents=getLocationMoonTimes,setTracking='setMoonTracking'}={}){
+export function initMoonSky(world,{beginPreview,endPreview,setPreviewNight},{kind='moon',readState=getMoonSkyState,getHeight=getMoonPanoramaHeight,getHorizontal=state=>state.azimuth/Math.PI*1.5,pathState=readState,pathHeight=getHeight,pathHorizontal=getHorizontal,getEvents=getLocationMoonTimes,setTracking='setMoonTracking'}={}){
   const $=id=>document.getElementById(kind==='moon'?id:id.replace(/^moon/,'sun')),reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let location=readCompanyLocation(),enabled=true,preview=false,playing=false,bounds,previewTime,previewEvents,previous,lastFrame=0,raf=0,previewCloseTimer=0;
   try{enabled=localStorage.getItem(`tool-portal-${kind}-tracking`)!=='false';}catch{}
@@ -22,11 +22,19 @@ export function initMoonSky(world,{beginPreview,endPreview},{kind='moon',readSta
     const node=$('moon-sky-status');if(node.textContent!==label)node.textContent=label;
     node.dataset.altitude=String(degrees);node.dataset.inView=String(state.inView);
   }
+  // Sky brightness follows the real sun at the previewed time, for both sun and moon previews. Hysteresis avoids flicker near twilight.
+  let previewNight;
+  function syncPreviewSky(){
+    const altitude=globalThis.SunCalc.getPosition(new Date(previewTime),location.lat,location.lng).altitude;
+    const next=altitude<-.09?true:altitude>-.05?false:previewNight??altitude<-.07;
+    if(next!==previewNight){previewNight=next;setPreviewNight?.(next);}
+  }
   function apply(){
     $('moon-tracking').checked=enabled;$('moon-tracking').disabled=!location;$('moon-preview-start').disabled=!location;
     $('moon-tracking-hint').textContent=location?(enabled?'隨所在地時間升起、落下':'固定在天空中，不隨時間移動'):'請先設定公司所在地。';
     const mode=$('moon-mode-label');if(mode){mode.textContent=!location?'未設定':enabled?'動態':'固定';mode.dataset.enabled=String(!!location&&enabled);}
     if(!location||!enabled&&!preview)$('moon-sky-status').textContent=kind==='moon'?'固定位置 · 當日月相':'固定位置 · 日間太陽';
+    if(preview&&location)syncPreviewSky();
     world[setTracking]({location,enabled:!!location&&(enabled||preview),previewTime:preview?previewTime:null,onStatus:status});
   }
   function timeLabel(){
@@ -66,7 +74,7 @@ export function initMoonSky(world,{beginPreview,endPreview},{kind='moon',readSta
   }
   $('moon-tracking').addEventListener('change',event=>{enabled=event.target.checked;try{localStorage.setItem(`tool-portal-${kind}-tracking`,String(enabled));}catch{}apply();});
   $('moon-preview-start').addEventListener('click',()=>{
-    if(!location||preview)return;bounds=getLocationDayBounds(location);previewEvents=getEvents(location);previewTime=bounds.start;preview=true;playing=!reduced.matches;previous=beginPreview();
+    if(!location||preview)return;bounds=getLocationDayBounds(location);previewEvents=getEvents(location);previewTime=bounds.start;preview=true;previewNight=undefined;playing=!reduced.matches;previous=beginPreview();
     $('moon-preview-rise').disabled=!previewEvents.rise;$('moon-preview-set').disabled=!previewEvents.set;
     const reveal=()=>{const panel=$('moon-preview');clearTimeout(previewCloseTimer);panel.hidden=false;panel.classList.remove('is-closing');panel.classList.add('is-opening');requestAnimationFrame(()=>panel.classList.remove('is-opening'));
       $('moon-preview-compass').hidden=false;$('moon-preview-path').removeAttribute('hidden');drawPath();$('moon-preview-play').disabled=reduced.matches;$('moon-preview-motion-hint').textContent=reduced.matches?'已依減少動態效果偏好停止播放，可拖曳時間。':`東方在畫面左側，${kind==='moon'?'月亮':'太陽'}由左向右升起、落下。`;
