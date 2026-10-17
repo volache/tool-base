@@ -3,6 +3,7 @@ import {initCompanyLocation,readCompanyLocation} from './company-location.js';
 import {getSkyNight} from './sky-model.js';
 import {createWeatherService,weatherPresets,weatherLabels,windLabel,visibilityLabel} from './weather.js';
 import {createCombobox} from './combobox.js';
+import {enableCollapse} from './panel-collapse.js';
 import {initMoonSky} from './moon-sky.js';
 import {initSunSky} from './sun-sky.js';
 import {initSkySettings} from './sky-settings.js';
@@ -302,7 +303,8 @@ try{
     const rows=showLive&&snapshot.details?[['濕度',snapshot.details.humidity!==null?`${Math.round(snapshot.details.humidity)}%`:null],['風',`${windLabel(snapshot.details.wind)} · ${snapshot.details.wind.toFixed(1)} m/s`],['雲量',`${Math.round(snapshot.details.cloud)}%`],['能見度',visibilityLabel(snapshot.details.visibility)]].filter(row=>row[1]):[];
     $('#weather-pop-details').replaceChildren(...rows.map(([name,value])=>{const box=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=name;dd.textContent=value;box.append(dt,dd);return box;}));
     const forecast=showLive?snapshot.forecast:[];
-    $('#weather-pop-forecast-section').hidden=!forecast.length;
+    $('#weather-pop-forecast-section').hidden=!showLive&&!forecast.length;
+    $('#weather-pop-forecast-empty').hidden=!showLive||forecast.length>0;
     $('#weather-pop-forecast').replaceChildren(...forecast.map((day,index)=>{
       const row=document.createElement('li'),date=document.createElement('time'),name=document.createElement('span'),range=document.createElement('small');
       date.textContent=dayNames[index]??day.date.slice(5);date.dateTime=day.date;
@@ -367,11 +369,13 @@ try{
   });
   const moonSky=initMoonSky(world,skyPreview());
   const sunSky=initSunSky(world,skyPreview());
+  enableCollapse($('#moon-preview'),{key:'moon-preview'});enableCollapse($('#sun-preview'),{key:'sun-preview'});
   const {initRouteEditor}=await import('./route-editor.js');
   initRouteEditor(world,{
     begin(){moonSky.stopPreview();sunSky.stopPreview();routeEditing=true;applyAutoSky();const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
     end(previous){routeEditing=false;Object.assign(state,previous);applyAutoSky();lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
+  enableCollapse(document.querySelector('.route-panel'),{key:'route-panel'});
   iconURLs=world.icons;
   renderTools();
   $('#render-status').textContent=reduced.matches?'已依系統偏好暫停背景，可手動播放。':'';

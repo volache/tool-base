@@ -96,7 +96,8 @@ export async function openSession(baseUrl,{viewport=[1400,820],location=defaultL
     },
     async goto(path='',wait=3500){await send('Page.navigate',{url:baseUrl+path});await session.waitFor("document.documentElement.dataset.world==='ready'||document.documentElement.dataset.world==='fallback'",30000,'3D 世界載入');await sleep(wait);},
     async click(selector){await session.run(`q(${JSON.stringify(selector)}).click();`);},
-    async key(key,code=0){for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key,code:key,windowsVirtualKeyCode:code});await sleep(120);},
+    // Enter and Space carry text so native buttons activate exactly as they do for a real keyboard.
+    async key(key,code=0){const text=key==='Enter'?String.fromCharCode(13):key===' '?' ':undefined;for(const type of ['keyDown','keyUp'])await send('Input.dispatchKeyEvent',{type,key,code:key,windowsVirtualKeyCode:code,...(type==='keyDown'&&text?{text}:{})});await sleep(120);},
     async viewport(width,height,mobile=false){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile});await sleep(1200);},
     async png(){const response=await send('Page.captureScreenshot',{format:'png'});return Buffer.from(response.result.data,'base64');},
     async screenshot(label){const buffer=await session.png();writeFileSync(join(outputDir,`${name}-${label}.png`),buffer);return buffer;},

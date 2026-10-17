@@ -419,10 +419,9 @@ export async function createWorld(container,options={}){
       if(Math.abs(x)>7.2&&j%5===0)flowers.push([x+.18,.25,z-.12,.18,.25,.18]);
     }
     for(let j=0;j<170;j++){const x=(random()-.5)*110;const z=(random()-.5)*chunkLength;if(Math.abs(x)>7.2)studs.push([x,-.22,z,.85,1,.85]);}
-    batch(group,cube,materials.brick,plates,false);
-    batch(group,cube,materials.path,pathPlates,false);
-    lowDetails.push(batch(group,cylinder,materials.stud,studs,false));
-    batch(group,cube,materials.rock,pebbles,false);
+    // Keep each ground batch with its source positions so a scene (the city) can clear room for its roads.
+    const studMesh=batch(group,cylinder,materials.stud,studs,false);lowDetails.push(studMesh);
+    const ground=[[batch(group,cube,materials.brick,plates,false),plates],[batch(group,cube,materials.path,pathPlates,false),pathPlates],[studMesh,studs],[batch(group,cube,materials.rock,pebbles,false),pebbles]];
     const plants=batch(group,cube,materials.tree,sprouts,false);
     const flowerBed=batch(group,cube,materials.flower,flowers,false);
     const trees=new THREE.Group(),cacti=new THREE.Group(),palms=new THREE.Group();group.add(trees,cacti,palms);
@@ -431,11 +430,11 @@ export async function createWorld(container,options={}){
       addTree(trees,x,z,.65+random()*.4);addCactus(cacti,x+.7,z,.65+random()*.5);
       addPalm(palms,x,z,.7+random()*.38);
     }
-    chunks.push({group,trees,cacti,palms,plants,flowerBed});
+    chunks.push({group,trees,cacti,palms,plants,flowerBed,ground});
   }
   const snowWorld=createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunkMaterial:materials.trunk});
   const forestWorld=createForestWorld(THREE,{scene,chunks,cube,batch,random});
-  const cityWorld=createCityWorld(THREE,{scene,chunks,cube,batch,random,groundSpeed:2.65});
+  const cityWorld=createCityWorld(THREE,{belt,chunks,cube,batch,random,groundSpeed:2.65});
   const groundSpeed=2.65;
   const dayLife=createDayLife(THREE,{scene,belt,cube,random,groundSpeed});
   const weatherWorld=createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial:whiteMat});

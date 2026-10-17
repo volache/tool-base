@@ -1,7 +1,7 @@
 // Real weather for the company location. Open-Meteo needs no key and allows browser requests, so no secret ever ships in dist/.
 // Everything outside the network call is pure, so the mapping can be tested without a browser.
 const ENDPOINT='https://api.open-meteo.com/v1/forecast';
-const CACHE_KEY='tool-portal-weather-v1';
+const CACHE_KEY='tool-portal-weather-v1',CACHE_SCHEMA=2;   // schema 2 added the 3-day outlook and recent rain; older entries are refetched instead of shown without them
 const FRESH_MS=15*60*1000,STALE_MS=3*60*60*1000,TIMEOUT_MS=8000;
 const clamp=(value,min=0,max=1)=>Math.min(max,Math.max(min,value));
 
@@ -137,11 +137,11 @@ export async function fetchWeather(location,{fetchImpl=globalThis.fetch,timeout=
 function readCache(storage,key,now){
   try{
     const entry=JSON.parse(storage.getItem(CACHE_KEY));
-    if(entry&&entry.key===key&&Number.isFinite(entry.at)&&now-entry.at<STALE_MS)return {at:entry.at,current:validateCurrent({current:entry.current}),daily:parseDaily({daily:entry.daily}),lastWetAt:Number.isFinite(entry.lastWetAt)?entry.lastWetAt:null};
+    if(entry&&entry.schema===CACHE_SCHEMA&&entry.key===key&&Number.isFinite(entry.at)&&now-entry.at<STALE_MS)return {at:entry.at,current:validateCurrent({current:entry.current}),daily:parseDaily({daily:entry.daily}),lastWetAt:Number.isFinite(entry.lastWetAt)?entry.lastWetAt:null};
   }catch{}
   return null;
 }
-function writeCache(storage,key,at,current,daily,lastWetAt){try{storage.setItem(CACHE_KEY,JSON.stringify({key,at,current,lastWetAt,daily:daily&&{time:daily.map(d=>d.date),weather_code:daily.map(d=>d.code),temperature_2m_max:daily.map(d=>d.tmax),temperature_2m_min:daily.map(d=>d.tmin),precipitation_probability_max:daily.map(d=>d.pop),cloud_cover_mean:daily.map(d=>d.cloud)}}));}catch{}}
+function writeCache(storage,key,at,current,daily,lastWetAt){try{storage.setItem(CACHE_KEY,JSON.stringify({schema:CACHE_SCHEMA,key,at,current,lastWetAt,daily:daily&&{time:daily.map(d=>d.date),weather_code:daily.map(d=>d.code),temperature_2m_max:daily.map(d=>d.tmax),temperature_2m_min:daily.map(d=>d.tmin),precipitation_probability_max:daily.map(d=>d.pop),cloud_cover_mean:daily.map(d=>d.cloud)}}));}catch{}}
 
 // Keeps the latest weather, refreshing every 15 minutes while the page is visible. Failures never surface as errors:
 // the last good reading is kept for up to 3 hours, then the scene simply returns to clear.

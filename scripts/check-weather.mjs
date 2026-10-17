@@ -79,6 +79,14 @@ clock+=3*60*60*1000;await service.update();assert.equal(service.snapshot().state
 fail=false;clock+=1000;const second=createWeatherService({getLocation:()=>location,onChange(){},fetchImpl,storage,now:()=>clock});
 await second.update();const before=fetches;
 const third=createWeatherService({getLocation:()=>location,onChange(){},fetchImpl,storage,now:()=>clock});await third.update();assert.equal(fetches,before,'A fresh cache serves a new page load.');
+// A cache written by an older version (no schema, no outlook) must not be served: it is refetched so the forecast appears at once
+{
+  const old=memory();old.setItem('tool-portal-weather-v1',JSON.stringify({key:'23.99,121.61',at:clock-1000,current:good.current}));
+  let refetched=0;const service=createWeatherService({getLocation:()=>location,onChange(){},fetchImpl:async()=>{refetched++;return {ok:true,json:async()=>withDaily};},storage:old,now:()=>clock});
+  await service.update();assert.equal(refetched,1,'An old-schema cache is not trusted.');assert.equal(service.snapshot().forecast.length,3,'The fresh fetch brings the three-day outlook.');
+  const reload=createWeatherService({getLocation:()=>location,onChange(){},fetchImpl:async()=>{refetched++;return {ok:true,json:async()=>withDaily};},storage:old,now:()=>clock});
+  await reload.update();assert.equal(refetched,1,'The upgraded cache is served on the next load.');assert.equal(reload.snapshot().forecast.length,3);
+}
 // Disabled or no location: no network at all
 let quiet=0;const off=createWeatherService({getLocation:()=>null,onChange(){},fetchImpl:async()=>{quiet++;return {ok:true,json:async()=>good};},storage:memory(),now:()=>clock});
 await off.update();assert.equal(quiet,0);assert.equal(off.snapshot().status,'nolocation');

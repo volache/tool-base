@@ -89,3 +89,23 @@ export async function 手機版不超出畫面({open,assert}){
   assert.equal(await page.run('return document.documentElement.scrollWidth>innerWidth;'),false,'不應橫向捲動');
   await page.screenshot('mobile');
 }
+
+export async function 舊版快取沒有預報時會立刻重新取得({open,assert}){
+  // 舊版程式存下的天氣（沒有 schema、沒有三日預報）仍在有效期內，使用者升級後卻看不到預報
+  const old=JSON.stringify({key:'23.99,121.61',at:Date.now()-60000,current:sampleWeather.current});
+  const page=await open({storage:{'tool-portal-weather-v1':old}});await page.goto();
+  await page.waitFor("!q('#current-weather').hidden");
+  await page.click('#current-weather');await page.waitFor("!q('#weather-popover').hidden");
+  const pop=await popState(page);
+  assert.equal(pop.forecast.length,3,'升級後應立刻有三日預報');
+  assert((await page.run('return window.__weatherCalls;'))>=1,'應重新呼叫天氣服務');
+}
+
+export async function 預報缺少時顯示說明而不是整段消失({open,assert}){
+  const noDaily={current:sampleWeather.current};
+  const page=await open({weather:noDaily});await page.goto();
+  await page.waitFor("!q('#current-weather').hidden");
+  await page.click('#current-weather');await page.waitFor("!q('#weather-popover').hidden");
+  assert.equal(await page.run("return qa('#weather-pop-forecast li').length;"),0);
+  assert.equal(await page.run("return !q('#weather-pop-forecast-empty').hidden&&!q('#weather-pop-forecast-section').hidden;"),true,'顯示「預報尚未取得」的說明');
+}
