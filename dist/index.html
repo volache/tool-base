@@ -43,6 +43,7 @@
   </main>
 
   <aside id="settings" class="settings" aria-labelledby="settings-title" hidden>
+    <div class="settings-scroll">
     <div class="settings-head"><span><small class="panel-kicker">場景控制</small><h2 id="settings-title">讓背景剛剛好</h2></span><button id="settings-close" class="icon-control control" aria-label="關閉設定"><i data-lucide="x" aria-hidden="true"></i></button></div>
     <label id="quality-field" for="quality">畫質</label>
     <div class="quality-picker">
@@ -66,6 +67,7 @@
     </div></section>
     <p id="render-status" class="sr-only" role="status">背景載入中</p>
     <button id="edit-ufo" class="primary" type="button" disabled><i data-lucide="route" aria-hidden="true"></i>編輯飛碟航線</button>
+    </div>
   </aside>
   <section id="route-editor" role="dialog" aria-modal="true" hidden aria-label="飛碟航線編輯器">
     <svg id="route-overlay" aria-label="可拖曳的飛碟航線"><path id="route-hit" fill="none"/><path id="route-path" fill="none"/><path id="route-control-lines" fill="none"/><g id="route-control-handles"></g><g id="route-handles"></g></svg>

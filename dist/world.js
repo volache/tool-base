@@ -111,7 +111,7 @@ export async function createWorld(container,options={}){
       moon.position.lerpVectors(moonTransition.position,target,ease);
       moonOpacity=THREE.MathUtils.lerp(moonTransition.opacity,opacity,ease);
       moon.visible=progress<1||visible;
-      if(progress>=1)moonTransition=undefined;
+      if(progress>=1){moonTransition=undefined;moonStatusSecond=-1;}
     }else{moon.position.copy(target);moonOpacity=opacity;moon.visible=visible;}
     moonPhase.setOpacity(moonOpacity);
   }
@@ -126,7 +126,7 @@ export async function createWorld(container,options={}){
     if(preview){
       const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
       // Keep the moon moving below the horizon so its limb is revealed progressively.
-      const sinAltitude=Math.sin(state.altitude),skyHeight=sinAltitude*.88;
+      const sinAltitude=Math.sin(state.altitude),skyHeight=sinAltitude*1.08;
       moonTarget.set(state.azimuth/Math.PI*1.5,.025+skyHeight,depth).unproject(camera);
       moonPhase.setHorizon(2,.02);
     }else{moonTarget.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
@@ -135,7 +135,7 @@ export async function createWorld(container,options={}){
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
     nightSky.visible=true;
-    const second=Math.floor(time/1000);if(second!==moonStatusSecond){moonStatusSecond=second;moonTracking.onStatus?.({...state,inView:moonInView});}
+    const second=Math.floor(time/1000);if(!moonTransition&&second!==moonStatusSecond){moonStatusSecond=second;moonTracking.onStatus?.({...state,inView:moonInView});}
   }
   function setMoonTracking(config){
     const modeChanged=moonTracking.enabled!==config.enabled||(moonTracking.previewTime==null)!==(config.previewTime==null)||moonTracking.location!==config.location;
@@ -226,9 +226,10 @@ export async function createWorld(container,options={}){
   }
   function getUfoGuide(){
     const flight={variant:0,radius:5.5,phase:0},center=moon.position.clone().project(camera);
+    const guideCurve=buildUfoCurve(previewUfoConfig??ufoRouteConfigs[0]);
     const path=[];
     for(let i=0;i<=240;i++){
-      const p=sampleUfoFlight(flight,i/240,new THREE.Vector3()).add(moon.position).project(camera);
+      const p=(guideCurve?guideCurve.getPointAt(i/240,new THREE.Vector3()):sampleUfoFlight(flight,i/240,new THREE.Vector3())).add(moon.position).project(camera);
       path.push([(p.x+1)/2,(1-p.y)/2]);
     }
     return {path,moon:[(center.x+1)/2,(1-center.y)/2]};

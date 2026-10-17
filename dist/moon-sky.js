@@ -38,7 +38,7 @@ export function initMoonSky(world,{beginPreview,endPreview}){
     for(let i=0;i<=96;i++){
       const state=getMoonSkyState(bounds.start+(bounds.end-bounds.start)*i/96,location),sinAltitude=Math.sin(state.altitude);
       if(state.altitude<-.03){parts.push(null);continue;}
-      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=Math.max(26,Math.min(height*.62,(1-(.025+sinAltitude*.88))*height/2));
+      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=Math.max(26,Math.min(height*.62,(1-(.025+sinAltitude*1.08))*height/2));
       parts.push([x,y]);
     }
     let penUp=true,d='',first,last;for(const point of parts){if(!point){penUp=true;continue;}if(!first)first=point;last=point;d+=`${penUp?'M':'L'}${point[0].toFixed(1)} ${point[1].toFixed(1)} `;penUp=false;}
