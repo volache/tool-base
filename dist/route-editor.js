@@ -1,23 +1,15 @@
-import {migrateRoute,splitSegment,cubicPoint,ensureOffscreenEndpoints} from './route-curves.js';
-const key='tool-portal-ufo-routes-v4';
+import {splitSegment,cubicPoint,ensureOffscreenEndpoints} from './route-curves.js';
+// A new default revision applies the owner's approved route once, while preserving subsequent edits.
+const key='tool-portal-ufo-routes-v4-approved-20261017';
 const vector=v=>Array.isArray(v)&&v.length===2&&v.every(n=>Number.isFinite(n)&&Math.abs(n)<=3);
 const valid=value=>value&&Array.isArray(value.nodes)&&value.nodes.length>=3&&value.nodes.length<=48&&value.nodes.every(n=>vector(n.p)&&vector(n.in)&&vector(n.out))&&Number.isFinite(value.duration)&&value.duration>=8&&value.duration<=28;
-const legacy=value=>value&&Array.isArray(value.points)&&value.points.length>=3&&value.points.length<=32&&value.points.every(vector)&&Number.isFinite(value.duration)&&value.duration>=8&&value.duration<=28;
 export function initRouteEditor(world,{begin,end}){
   const $=id=>document.getElementById(id),root=$('route-editor'),svg=$('route-overlay'),handles=$('route-handles');
   let saved,config,routes,routeIndex=0,selectedPoint=0,active=false,dragIndex=-1,dragKind='anchor',dragOffset=[0,0],previous;
-  const defaults=()=>[{name:'環月',...world.getUfoRoute()}];
-  const withoutOldDefaults=items=>items.filter((route,index)=>index===0||!['環月','迴旋','寬幅'].includes(route.name));
+  const defaults=()=>[world.getUfoRoute()];
   try{
     const data=JSON.parse(localStorage.getItem(key));
     if(data?.routes?.length>=1&&data.routes.length<=12&&data.routes.every(valid))saved=data;
-    else{
-      const v3=JSON.parse(localStorage.getItem('tool-portal-ufo-routes-v3')),v2=JSON.parse(localStorage.getItem('tool-portal-ufo-routes-v2')),v1=JSON.parse(localStorage.getItem('tool-portal-ufo-route-v1'));
-      const moon=world.getUfoGuide().moon;
-      if(v3?.routes?.length>=1&&v3.routes.length<=12&&v3.routes.every(valid))saved={routes:withoutOldDefaults(v3.routes)};
-      else if(v2?.routes?.length>=1&&v2.routes.length<=12&&v2.routes.every(legacy))saved={routes:withoutOldDefaults(v2.routes).map(route=>migrateRoute(route,moon))};
-      else if(legacy(v1))saved={routes:[migrateRoute({name:'自訂航線',...v1},moon),...defaults().slice(1)]};
-    }
   }catch{}
   world.setUfoRoutes(saved?.routes??defaults());
   const copy=value=>JSON.parse(JSON.stringify(value));
@@ -206,7 +198,7 @@ export function initRouteEditor(world,{begin,end}){
   $('route-add').addEventListener('click',()=>{
     if(routes.length>=12)return;
     let number=routes.length+1;while(routes.some(route=>route.name===`航線 ${number}`))number++;
-    routes.push({name:`航線 ${number}`,...world.getUfoRoute()});routeIndex=routes.length-1;config=routes[routeIndex];selectedPoint=0;routeTabs();applyDraft();$('route-name').focus();
+    routes.push({...world.getUfoRoute(),name:`航線 ${number}`});routeIndex=routes.length-1;config=routes[routeIndex];selectedPoint=0;routeTabs();applyDraft();$('route-name').focus();
   });
   $('route-delete').addEventListener('click',()=>{
     if(routes.length<=1)return;
@@ -214,7 +206,7 @@ export function initRouteEditor(world,{begin,end}){
   });
   $('ufo-duration').addEventListener('input',event=>{config.duration=Number(event.target.value);scheduleDraft();});
   $('route-replay').addEventListener('click',()=>{applyDraft();world.previewUfoRoute(true);});
-  $('route-reset').addEventListener('click',()=>{config={name:config.name,...world.getUfoRoute()};routes[routeIndex]=config;selectedPoint=0;applyDraft();});
+  $('route-reset').addEventListener('click',()=>{config={...world.getUfoRoute(),name:config.name};routes[routeIndex]=config;selectedPoint=0;applyDraft();});
   $('route-save').addEventListener('click',()=>{
     try{const next={routes:copy(routes)};localStorage.setItem(key,JSON.stringify(next));saved=next;$('route-status').textContent=`已儲存 ${routes.length} 條航線。關閉編輯器後依序輪換。`;}
     catch{$('route-status').textContent='瀏覽器無法儲存，請匯出航線以保留調整。';}

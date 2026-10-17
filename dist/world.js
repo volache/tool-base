@@ -1,6 +1,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import {createVolumetricFog} from './volumetric-fog.js';
-import {fromLoop,ensureOffscreenEndpoints} from './route-curves.js';
+import {ensureOffscreenEndpoints} from './route-curves.js';
+import {defaultUfoRoute} from './ufo-default-route.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
 // Instancing keeps the many brick studs and terrain pieces in a small number of draw calls.
@@ -140,12 +141,7 @@ export async function createWorld(container,options={}){
     ufo.rotation.x=.08+Math.sin(t*Math.PI*4)*.035;ufoFlight.last=elapsed;
   }
   function getUfoRoute(){
-    const center=moon.position.clone().project(camera),points=[];
-    for(let i=0;i<8;i++){
-      const a=i/8*Math.PI*2,p=new THREE.Vector3(5.5*Math.cos(a),2.8*Math.sin(a),0).add(moon.position).project(camera);
-      points.push([(p.x-center.x)/2,(center.y-p.y)/2]);
-    }
-    return {nodes:fromLoop(points,[1.12-(center.x+1)/2,.1-(1-center.y)/2],[-.12-(center.x+1)/2,.25-(1-center.y)/2]),duration:16};
+    return structuredClone(defaultUfoRoute);
   }
   function buildUfoCurve(config){
     if(config?.nodes?.length>=3){
@@ -525,8 +521,10 @@ export async function createWorld(container,options={}){
   function animateSceneTransition(delta){
     if(!sceneTransition)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){finishSceneTransition();return;}
-    const transition=sceneTransition;transition.time+=delta;transition.age+=delta;
-    const incoming=transition.phase==='in',duration=3;
+    const transition=sceneTransition,incoming=transition.phase==='in',duration=incoming?3:2;
+    transition.time+=delta;
+    // Keep the same fog sweep and fade envelope; accelerate only its approach.
+    transition.age=Math.min(incoming?6:3,transition.age+delta*(incoming?1:1.5));
     const p=Math.min(1,transition.time/duration),ease=p*p*(3-2*p);
     const progress=Math.min(1,transition.age/6),sweep=progress*progress*(3-2*progress);
     const travel=-65+sweep*230;
