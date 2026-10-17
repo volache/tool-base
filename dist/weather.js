@@ -21,7 +21,11 @@ export const weatherPresets={
 };
 
 // WMO weather interpretation codes -> renderer state. Wind: 2 m/s is calm, 12 m/s and above is the strongest we draw.
-export function mapWeather({weather_code:code,cloud_cover:cover=0,wind_speed_10m:speed=0}){
+// Open-Meteo reports "fog" (45/48) whenever its model visibility is low, even at 50-70% humidity where there is no real fog.
+// Trust it only when the air is nearly saturated and visibility is genuinely short; otherwise fall back to the cloud cover.
+const isFoggy=(rh,visibility)=>Number.isFinite(rh)&&Number.isFinite(visibility)&&rh>=92&&visibility<1000;
+export function mapWeather({weather_code:rawCode,cloud_cover:cover=0,wind_speed_10m:speed=0,relative_humidity_2m:rh,visibility}){
+  const code=(rawCode===45||rawCode===48)&&!isFoggy(rh,visibility)?(cover>=85?3:cover>=40?2:0):rawCode;
   const sky=clamp(cover/100),wind=clamp((speed-2)/10);
   let kind='clear',cloud=Math.min(sky,.3),rain=0,snow=0,fog=0,thunder=0;
   if(code===2){kind='partly';cloud=clamp(sky,.4,.7);}
@@ -56,14 +60,18 @@ export function validateCurrent(data){
     if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max||(integer&&!Number.isInteger(value)))throw new Error(`天氣欄位 ${key} 不正確`);
     return value;
   };
-  return {weather_code:read('weather_code',0,99,true),cloud_cover:read('cloud_cover',0,100),wind_speed_10m:read('wind_speed_10m',0,120),temperature_2m:read('temperature_2m',-90,70)};
+  const result={weather_code:read('weather_code',0,99,true),cloud_cover:read('cloud_cover',0,100),wind_speed_10m:read('wind_speed_10m',0,120),temperature_2m:read('temperature_2m',-90,70)};
+  // Optional fields: older cached readings do not have them, and the fog check simply treats them as "not foggy".
+  if(current.relative_humidity_2m!==undefined)result.relative_humidity_2m=read('relative_humidity_2m',0,100);
+  if(current.visibility!==undefined)result.visibility=read('visibility',0,1000000);
+  return result;
 }
 
 const roundedCoordinate=value=>Math.round(value*100)/100;
 export function weatherKey(location){return `${roundedCoordinate(location.lat)},${roundedCoordinate(location.lng)}`;}
 
 export async function fetchWeather(location,{fetchImpl=globalThis.fetch,timeout=TIMEOUT_MS}={}){
-  const query=new URLSearchParams({latitude:String(roundedCoordinate(location.lat)),longitude:String(roundedCoordinate(location.lng)),current:'weather_code,cloud_cover,wind_speed_10m,temperature_2m',wind_speed_unit:'ms',timezone:'auto'});
+  const query=new URLSearchParams({latitude:String(roundedCoordinate(location.lat)),longitude:String(roundedCoordinate(location.lng)),current:'weather_code,cloud_cover,wind_speed_10m,temperature_2m,relative_humidity_2m,visibility',wind_speed_unit:'ms',timezone:'auto'});
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
   try{
     const response=await fetchImpl(`${ENDPOINT}?${query}`,{signal:controller.signal,headers:{Accept:'application/json'}});

@@ -1,17 +1,21 @@
 import assert from 'node:assert/strict';
 const {mapWeather,adaptToBiome,validateCurrent,fetchWeather,createWeatherService,weatherPresets,weatherLabels}=await import('../dist/weather.js');
-const read=(code,cloud=0,wind=0)=>mapWeather({weather_code:code,cloud_cover:cloud,wind_speed_10m:wind});
+const read=(code,cloud=0,wind=0,extra={})=>mapWeather({weather_code:code,cloud_cover:cloud,wind_speed_10m:wind,...extra});
+const saturated={relative_humidity_2m:96,visibility:300};
 // WMO code mapping
 assert.equal(read(0,5).kind,'clear');assert(read(0,100).cloud<=.3,'A clear-sky code never draws a heavy cloud deck.');
 assert.equal(read(2,10).kind,'partly');assert(read(2,10).cloud>=.4);
 assert(read(3,20).cloud>=.85);
-assert(read(45).fog>.8&&read(48).fog===1);
+assert(read(45,60,0,saturated).fog>.8&&read(48,60,0,saturated).fog===1);
+// Model "fog" at ordinary humidity (Open-Meteo reports it over dry air) must not draw fog.
+for(const extra of [{},{relative_humidity_2m:70,visibility:300},{relative_humidity_2m:96,visibility:3000},{relative_humidity_2m:91,visibility:200}])assert.equal(read(45,30,0,extra).fog,0,'False model fog is ignored.');
+assert.equal(read(45,10,0,{relative_humidity_2m:60,visibility:300}).kind,'clear');assert.equal(read(45,50,0,{relative_humidity_2m:60,visibility:300}).kind,'partly');assert.equal(read(45,95,0,{relative_humidity_2m:60,visibility:300}).kind,'cloudy');
 assert.equal(read(53).kind,'drizzle');assert(read(53).rain<read(63).rain&&read(63).rain<read(65).rain);
 assert.equal(read(81).kind,'rain');assert.equal(read(75).kind,'snow');assert.equal(read(86).snow,1);
 assert.equal(read(95).kind,'thunder');assert.equal(read(99).thunder,1);assert(read(95).rain>0);
 for(const code of [61,63,65,71,73,75,80,81,82,95]){const s=read(code,10);assert(s.cloud>=.8,`Precipitation code ${code} must close the sky.`);}
 assert.equal(read(0,0,0).wind,0);assert.equal(read(0,0,2).wind,0);assert.equal(read(0,0,12).wind,1);assert.equal(read(0,0,40).wind,1);assert(read(0,0,7).wind>.4&&read(0,0,7).wind<.6);
-for(let code=0;code<=99;code++){const s=read(code,50,5);for(const key of ['cloud','rain','snow','fog','thunder','wind'])assert(s[key]>=0&&s[key]<=1,`${code}.${key}`);}
+for(let code=0;code<=99;code++){const s=read(code,50,5,saturated);for(const key of ['cloud','rain','snow','fog','thunder','wind'])assert(s[key]>=0&&s[key]<=1,`${code}.${key}`);}
 for(const [name,preset] of Object.entries(weatherPresets)){assert(weatherLabels[name],name);for(const key of ['cloud','rain','snow','fog','thunder','wind'])assert(preset[key]>=0&&preset[key]<=1);}
 // Biome adaptation
 const rain=weatherPresets.rain,snow=weatherPresets.snow;
@@ -22,6 +26,8 @@ assert.equal(adaptToBiome(null,'grass'),null);
 // Validation rejects anything unexpected
 const good={current:{weather_code:3,cloud_cover:80,wind_speed_10m:4,temperature_2m:22}};
 assert.deepEqual(validateCurrent(good),good.current);
+const withExtras={current:{...good.current,relative_humidity_2m:80,visibility:24000}};assert.deepEqual(validateCurrent(withExtras),withExtras.current);
+assert.throws(()=>validateCurrent({current:{...good.current,relative_humidity_2m:140}}));
 for(const bad of [null,{},{current:{}},{current:{...good.current,weather_code:3.5}},{current:{...good.current,cloud_cover:140}},{current:{...good.current,wind_speed_10m:'4'}},{current:{...good.current,temperature_2m:NaN}},{current:{...good.current,weather_code:120}}])assert.throws(()=>validateCurrent(bad));
 // Network behaviour with a fake fetch
 const location={lat:23.99113,lng:121.61124,timeZone:'Asia/Taipei'};
