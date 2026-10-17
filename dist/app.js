@@ -271,6 +271,21 @@ try{
   try{weatherOn=localStorage.getItem('tool-portal-weather')!=='false';}catch{}
   const weatherClock=new Intl.DateTimeFormat('zh-TW',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   const weatherService=createWeatherService({getLocation:readCompanyLocation,onChange:renderWeather});
+  const weatherIcons={'':'radio-tower',clear:'sun',partly:'cloud-sun',cloudy:'cloud',fog:'cloud-fog',drizzle:'cloud-drizzle',rain:'cloud-rain',snow:'snowflake',thunder:'cloud-lightning',windy:'wind'};
+  // Compact weather beside the clock: the real reading, or the previewed weather while previewing.
+  function renderClockWeather(snapshot,location){
+    const chip=$('#current-weather'),previewing=!!weatherOverride;
+    const kind=previewing?weatherOverride:(weatherOn&&location&&snapshot.state?snapshot.state.kind:null);
+    chip.hidden=!kind;
+    if(!kind)return;
+    const label=weatherLabels[kind],hasTemp=!previewing&&Number.isFinite(snapshot.temperature);
+    $('#current-weather-label').textContent=previewing?`${label}（預覽）`:label;
+    $('#current-weather-temp').textContent=hasTemp?`${Math.round(snapshot.temperature)}°C`:'';
+    $('#current-weather-temp').hidden=!hasTemp;
+    $('#current-weather-icon').replaceChildren(createIcon(weatherIcons[kind]));refreshIcons();
+    chip.title=previewing?`天氣預覽：${label}`:`${label} · ${Math.round(snapshot.temperature)}°C · ${weatherClock.format(snapshot.updatedAt)} 更新 · 資料來源 Open-Meteo${snapshot.status==='error'?'（暫時無法更新）':''}`;
+    chip.setAttribute('aria-label',chip.title);
+  }
   function renderWeather(snapshot=weatherService.snapshot()){
     const location=readCompanyLocation();
     $('#weather-link').checked=weatherOn;$('#weather-link').disabled=!location;
@@ -283,10 +298,10 @@ try{
       if(snapshot.status==='error')text+='（暫時無法更新）';
     }else text=snapshot.status==='error'?'暫時無法取得天氣，先顯示晴朗':'取得天氣中…';
     $('#weather-status').textContent=text;
+    renderClockWeather(snapshot,location);
     world.setWeather(weatherOverride?weatherPresets[weatherOverride]:(weatherOn&&location?snapshot.state:null));
   }
   $('#weather-link').addEventListener('change',event=>{weatherOn=event.target.checked;try{localStorage.setItem('tool-portal-weather',String(weatherOn));}catch{}weatherService.setEnabled(weatherOn);renderWeather();$('#announcer').textContent=weatherOn?'已開啟天氣連動':'已關閉天氣連動';});
-  const weatherIcons={'':'radio-tower',clear:'sun',partly:'cloud-sun',cloudy:'cloud',fog:'cloud-fog',drizzle:'cloud-drizzle',rain:'cloud-rain',snow:'snowflake',thunder:'cloud-lightning',windy:'wind'};
   createCombobox({
     button:$('#weather-preview'),list:$('#weather-preview-options'),value:'',
     items:[{value:'',label:'依實際天氣'},...Object.keys(weatherPresets).map(kind=>({value:kind,label:weatherLabels[kind]}))].map(item=>({...item,icon:weatherIcons[item.value]})),
