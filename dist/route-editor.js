@@ -35,7 +35,7 @@ export function initRouteEditor(world,{begin,end}){
   }
   function closeRoutePicker(focus=false){$('route-tabs').hidden=true;$('route-choice').setAttribute('aria-expanded','false');$('route-choice').removeAttribute('aria-activedescendant');if(focus)$('route-choice').focus();}
   function openRoutePicker(){routeTabs();$('route-tabs').hidden=false;$('route-choice').setAttribute('aria-expanded','true');highlightRoute(routeIndex);}
-  function updateRouteMode(){document.querySelectorAll('[data-route-mode]').forEach(button=>button.setAttribute('aria-pressed',String((button.dataset.routeMode==='dynamic')===viewingDynamic)));}
+  function updateRouteMode(){document.querySelectorAll('[data-route-mode]').forEach(button=>button.setAttribute('aria-pressed',String((button.dataset.routeMode==='dynamic')===viewingDynamic)));$('route-moon-note').textContent=world.getUfoGuide().moonNote;}
   function chooseRoute(index){routeIndex=index;config=routes[index];selectedPoint=0;applyDraft();routeTabs();closeRoutePicker(true);}
   function routeTabs(){
     $('route-choice-name').textContent=routes[routeIndex].name||`航線 ${routeIndex+1}`;
@@ -206,8 +206,8 @@ export function initRouteEditor(world,{begin,end}){
     routes.splice(routeIndex,1);routeIndex=Math.min(routeIndex,routes.length-1);config=routes[routeIndex];selectedPoint=0;routeTabs();applyDraft();
   });
   $('ufo-duration').addEventListener('input',event=>{config.duration=Number(event.target.value);scheduleDraft();});
-  $('route-replay').addEventListener('click',()=>{applyDraft();world.previewUfoRoute(true);});
-  document.querySelectorAll('[data-route-mode]').forEach(button=>button.addEventListener('click',()=>{viewingDynamic=button.dataset.routeMode==='dynamic';routes=viewingDynamic?dynamicRoutes:staticRoutes;routeIndex=0;config=routes[0];selectedPoint=0;applyDraft();routeTabs();updateRouteMode();$('route-status').textContent=`正在編輯${viewingDynamic?'動態':'靜態'}月亮航線。`;}));
+  $('route-replay').addEventListener('click',()=>{world.previewUfoRoute(true,{dynamic:viewingDynamic});applyDraft();updateRouteMode();});
+  document.querySelectorAll('[data-route-mode]').forEach(button=>button.addEventListener('click',()=>{viewingDynamic=button.dataset.routeMode==='dynamic';routes=viewingDynamic?dynamicRoutes:staticRoutes;routeIndex=0;config=routes[0];selectedPoint=0;world.previewUfoRoute(true,{dynamic:viewingDynamic});applyDraft();routeTabs();updateRouteMode();$('route-status').textContent=`正在編輯${viewingDynamic?'動態':'靜態'}月亮航線。`;}));
   $('route-reset').addEventListener('click',()=>{config={...copy(viewingDynamic?dynamicMoonUfoRoute:world.getUfoRoute()),name:config.name};routes[routeIndex]=config;selectedPoint=0;applyDraft();});
   $('route-save').addEventListener('click',()=>{
     try{const next=copy({routes:staticRoutes,dynamicRoutes});localStorage.setItem(key,JSON.stringify(exportRouteFile(next)));saved=next;$('route-status').textContent=`已儲存靜態 ${staticRoutes.length} 條、動態 ${dynamicRoutes.length} 條航線。`;}

@@ -116,8 +116,8 @@ export async function createWorld(container,options={}){
     moonPhase.setOpacity(moonOpacity);
   }
   function updateMoonPosition(){
-    const tracking=moonTracking.enabled&&moonTracking.location&&!routePreview;
-    const time=tracking?(moonTracking.previewTime??Date.now()):Date.now();
+    const tracking=moonTracking.location&&(routePreview?routePreviewDynamic:moonTracking.enabled);
+    const time=tracking?(routePreview?routePreviewTime:(moonTracking.previewTime??Date.now())):Date.now();
     moonPhase.update(time);
     if(!tracking){moonInView=true;moonPhase.material.depthTest=true;moonPhase.setOrientation(null);moonPhase.setHorizon(0);applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
     const state=getMoonSkyState(time,moonTracking.location);
@@ -152,7 +152,7 @@ export async function createWorld(container,options={}){
   const ufoLights=new THREE.MeshBasicMaterial({color:'#f2df99',fog:false,toneMapped:false});
   for(let i=0;i<6;i++){const a=i/6*Math.PI*2;box(ufo,Math.cos(a)*.84,-.12,Math.sin(a)*.84,.16,.1,.16,ufoLights,false);}
   let nextUfoAt=12,ufoFlight,ufoRoute=0;
-  let customUfoCurve,ufoDuration=16,routePreview=false,customUfoRoutes=[],ufoRouteConfigs=[],dynamicUfoConfigs=[structuredClone(dynamicMoonUfoRoute)],previewUfoConfig;
+  let customUfoCurve,ufoDuration=16,routePreview=false,routePreviewDynamic=false,routePreviewTime=0,customUfoRoutes=[],ufoRouteConfigs=[],dynamicUfoConfigs=[structuredClone(dynamicMoonUfoRoute)],previewUfoConfig;
   const flightPosition=new THREE.Vector3(),flightTangent=new THREE.Vector3();
   function createUfoFlight(){
     const index=ufoRoute++;
@@ -229,9 +229,14 @@ export async function createWorld(container,options={}){
       const p=(guideCurve?guideCurve.getPointAt(i/240,new THREE.Vector3()):sampleUfoFlight(flight,i/240,new THREE.Vector3())).add(moon.position).project(camera);
       path.push([(p.x+1)/2,(1-p.y)/2]);
     }
-    return {path,moon:[(center.x+1)/2,(1-center.y)/2]};
+    let moonNote='固定月亮位置';
+    if(routePreview&&routePreviewDynamic){
+      const location=moonTracking.location;
+      moonNote=location?`${location.name} · ${new Intl.DateTimeFormat('zh-TW',{timeZone:location.timeZone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(routePreviewTime)} 月亮位置${moonInView?'':'（目前位於畫面外或地平線下）'}；編輯期間固定。`:'尚未設定所在地；目前顯示固定月亮位置。';
+    }
+    return {path,moon:[(center.x+1)/2,(1-center.y)/2],moonNote};
   }
-  function previewUfoRoute(enabled){routePreview=enabled;if(enabled)moonTransition=undefined;updateMoonPosition();ufoFlight=undefined;nextUfoAt=elapsed;requestTick();}
+  function previewUfoRoute(enabled,{dynamic=false}={}){routePreview=enabled;routePreviewDynamic=dynamic;routePreviewTime=Date.now();if(enabled)moonTransition=undefined;updateMoonPosition();ufoFlight=undefined;nextUfoAt=elapsed;if(paused)render();requestTick();}
   // The shoreline, sloping beach and displaced water share one world-space frame.
   const coastUniforms={coastOrigin:{value:new THREE.Vector2()},coastTangent:{value:new THREE.Vector2(1,0)},coastNormal:{value:new THREE.Vector2(0,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
   const coastGLSL=`
