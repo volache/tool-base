@@ -28,7 +28,7 @@ export function initMoonSky(world,{beginPreview,endPreview}){
   }
   function apply(){
     $('moon-tracking').checked=enabled;$('moon-tracking').disabled=!location;$('moon-preview-start').disabled=!location;
-    $('moon-tracking-hint').textContent=location?'鏡頭朝南；月亮可能位於鏡頭外或地平線下。':'請先設定公司所在地。';
+    $('moon-tracking-hint').textContent=location?'依當地時間更新；天空採全景縮放，與預覽位置一致。':'請先設定公司所在地。';
     if(!location||!enabled&&!preview)$('moon-sky-status').textContent='固定位置 · 當日月相';
     world.setMoonTracking({location,enabled:!!location&&(enabled||preview),previewTime:preview?previewTime:null,onStatus:status});
   }

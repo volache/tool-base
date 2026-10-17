@@ -120,15 +120,12 @@ export async function createWorld(container,options={}){
     const time=tracking?(moonTracking.previewTime??Date.now()):Date.now();
     moonPhase.update(time);
     if(!tracking){moonInView=true;moonPhase.material.depthTest=true;moonPhase.setOrientation(null);moonPhase.setHorizon(0);applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
-    const state=getMoonSkyState(time,moonTracking.location),preview=moonTracking.previewTime!=null;
-    // The panorama has a screen-space horizon; the live sky uses terrain depth.
-    moonPhase.material.depthTest=!preview;
-    if(preview){
-      const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
-      // Keep the moon moving below the horizon so its limb is revealed progressively.
-      moonTarget.set(state.azimuth/Math.PI*1.5,getMoonPanoramaHeight(state,time,moonTracking.location),depth).unproject(camera);
-      moonPhase.setHorizon(2,.02);
-    }else{moonTarget.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
+    const state=getMoonSkyState(time,moonTracking.location);
+    // Live time and preview time use the same panorama projection and horizon.
+    moonPhase.material.depthTest=false;
+    const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
+    moonTarget.set(state.azimuth/Math.PI*1.5,getMoonPanoramaHeight(state,time,moonTracking.location),depth).unproject(camera);
+    moonPhase.setHorizon(2,.02);
     const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
     moonPhase.setOrientation(state.tilt);applyMoonVisual(moonTarget,(.65+.35*nightMix)*horizonFade,state.altitude>-.09);
     moonScreen.copy(moon.position).project(camera);
