@@ -65,6 +65,7 @@
   <section id="route-editor" role="dialog" aria-modal="true" hidden aria-label="飛碟航線編輯器">
     <svg id="route-overlay" aria-label="可拖曳的飛碟航線"><path id="route-hit" fill="none"/><path id="route-path" fill="none"/><path id="route-control-lines" fill="none"/><g id="route-control-handles"></g><g id="route-handles"></g></svg>
     <aside class="route-panel" aria-labelledby="route-title">
+      <div class="route-scroll">
       <div class="settings-head"><h2 id="route-title">飛碟航線</h2><button id="route-collapse" type="button" aria-expanded="true">收合面板</button><button id="route-close" class="control icon-control" aria-label="關閉航線編輯器"><i data-lucide="x" aria-hidden="true"></i></button></div>
       <div class="route-picker" id="route-picker">
         <button id="route-choice" type="button" role="combobox" aria-label="選擇航線" aria-haspopup="listbox" aria-controls="route-tabs" aria-expanded="false"><span><strong id="route-choice-name"></strong><small id="route-choice-meta"></small></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
@@ -82,6 +83,7 @@
       <small>秒數越少，速度越快；包含進場、繞月與離場。</small>
       <div class="route-actions"><button id="route-replay" type="button">重新預覽</button><button id="route-reset" type="button">重設航線</button><button id="route-export" type="button">匯出全部航線</button><button id="route-save" type="button">儲存全部航線</button></div>
       <p id="route-status" role="status">儲存僅套用在此瀏覽器。匯出後可將檔案提供給設計者定版。</p>
+      </div>
     </aside>
   </section>
 

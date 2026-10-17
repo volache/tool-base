@@ -31,6 +31,7 @@ export async function createWorld(container,options={}){
   let mix=biome==='desert'?1:0;
   let elapsed=0;
   let night=!!options.night;
+  let nightMix=night?1:0,themeTransition;
   const palettes={
     grass:{sky:'#cee5f1',ground:'#8aa968',brick:'#a8bd7c',stud:'#b4c487',hill:'#8ba991',hilltop:'#b3c5a0',path:'#d9cfac',rock:'#aab0a4',tree:'#527f58',trunk:'#c0a070',flower:'#f0a071'},
     desert:{sky:'#e8e5d9',ground:'#dbb27c',brick:'#ecc58d',stud:'#efd4a5',hill:'#c49771',hilltop:'#e2bd8c',path:'#e5c694',rock:'#b9a58d',tree:'#88a16d',trunk:'#b9956f',flower:'#d8a26e'},
@@ -45,22 +46,27 @@ export async function createWorld(container,options={}){
   const darkSide=new THREE.MeshStandardMaterial({color:'#657173',roughness:.7});
   const eyeWhite=new THREE.MeshStandardMaterial({color:'#faf6df',roughness:.7});
   const eyeBlack=new THREE.MeshStandardMaterial({color:'#26343b',roughness:.7});
-  const whiteMat=new THREE.MeshStandardMaterial({color:'#fff9e8',roughness:.92});
+  const whiteMat=new THREE.MeshStandardMaterial({color:'#fff9e8',roughness:.92,transparent:true});
   const waterMat=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.3,metalness:.08,side:THREE.DoubleSide,vertexColors:true,flatShading:true});
   const foamMat=new THREE.MeshStandardMaterial({color:'#e8fbf6',roughness:.42});
-  const reflectionCanvas=document.createElement('canvas');reflectionCanvas.width=256;reflectionCanvas.height=128;
-  const reflectionTexture=new THREE.CanvasTexture(reflectionCanvas);reflectionTexture.mapping=THREE.EquirectangularReflectionMapping;reflectionTexture.colorSpace=THREE.SRGBColorSpace;
-  waterMat.envMap=reflectionTexture;waterMat.envMapIntensity=.55;
-  let reflectedNight;
-  function updateWaterReflection(){
-    if(reflectedNight===night)return;reflectedNight=night;
+  function createWaterReflection(night){
+    const reflectionCanvas=document.createElement('canvas');reflectionCanvas.width=256;reflectionCanvas.height=128;
+    const reflectionTexture=new THREE.CanvasTexture(reflectionCanvas);reflectionTexture.mapping=THREE.EquirectangularReflectionMapping;reflectionTexture.colorSpace=THREE.SRGBColorSpace;
     const context=reflectionCanvas.getContext('2d'),sky=context.createLinearGradient(0,0,0,128);
     sky.addColorStop(0,night?'#08142b':'#82c6e0');sky.addColorStop(.48,night?'#244366':'#e5f2ed');sky.addColorStop(1,night?'#0c1b2b':'#628a90');
     context.fillStyle=sky;context.fillRect(0,0,256,128);
     const glow=context.createRadialGradient(160,38,1,160,38,night?12:22);
     glow.addColorStop(0,night?'#fff3ce':'#fff9e3');glow.addColorStop(1,'rgba(255,248,220,0)');
     context.fillStyle=glow;context.fillRect(128,6,64,64);reflectionTexture.needsUpdate=true;
+    return reflectionTexture;
   }
+  const waterReflections=[createWaterReflection(false),createWaterReflection(true)];
+  // Prepare both GPU reflection maps during loading, never during a theme click.
+  const reflectionGenerator=new THREE.PMREMGenerator(renderer);
+  const reflectionTargets=waterReflections.map(texture=>reflectionGenerator.fromEquirectangular(texture));
+  reflectionGenerator.dispose();waterReflections.forEach(texture=>texture.dispose());
+  waterMat.envMap=reflectionTargets[night?1:0].texture;waterMat.envMapIntensity=.55;
+  function updateWaterReflection(){waterMat.envMap=reflectionTargets[night?1:0].texture;}
   const cube=new THREE.BoxGeometry(1,1,1);
   const brickProfile=new THREE.Shape();
   brickProfile.moveTo(-.47,-.47);brickProfile.lineTo(.47,-.47);brickProfile.lineTo(.47,.47);brickProfile.lineTo(-.47,.47);brickProfile.closePath();
@@ -89,12 +95,13 @@ export async function createWorld(container,options={}){
     const cloud=new THREE.Mesh(cloudGeometry,whiteMat);cloud.position.set(x,y,z);cloud.scale.setScalar(s);cloudGroup.add(cloud);
   }
   const nightSky=new THREE.Group();scene.add(nightSky);
-  const moonMaterial=new THREE.MeshBasicMaterial({color:'#fff3ce',fog:false,toneMapped:false});
+  const moonMaterial=new THREE.MeshBasicMaterial({color:'#fff3ce',fog:false,toneMapped:false,transparent:true});
   const moon=new THREE.Mesh(new THREE.SphereGeometry(1.35,24,16),moonMaterial);moon.position.set(23,18,-48);nightSky.add(moon);
   const starPositions=[];
   for(let i=0;i<85;i++)starPositions.push((random()-.5)*150,12+random()*42,-60-random()*45);
   const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
-  nightSky.add(new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#fff5df',size:.24,sizeAttenuation:true,fog:false,toneMapped:false})));
+  const starMaterial=new THREE.PointsMaterial({color:'#fff5df',size:.24,sizeAttenuation:true,fog:false,toneMapped:false,transparent:true,depthWrite:false});
+  nightSky.add(new THREE.Points(starGeometry,starMaterial));
   const ufo=new THREE.Group();nightSky.add(ufo);ufo.visible=false;
   const saucerMat=new THREE.MeshStandardMaterial({color:'#a7bfcd',metalness:.35,roughness:.32,fog:false});
   const domeMat=new THREE.MeshStandardMaterial({color:'#6dcac7',emissive:'#317a82',emissiveIntensity:.35,roughness:.3,fog:false});
@@ -471,22 +478,7 @@ export async function createWorld(container,options={}){
   // One finite volume moves continuously through the 45-degree running axis.
   const mistUniforms={tint:{value:new THREE.Color()}};
   const groundMist={mistSeal:{value:0},mistFront:{value:-65},mistBack:{value:-185},mistAnchor:{value:new THREE.Vector2()}};
-  let scenerySnapshot,sceneTransition,pendingBiome;
-  function beginSceneryTransition(){
-    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-    render();
-    const snapshot=document.createElement('canvas');snapshot.width=renderer.domElement.width;snapshot.height=renderer.domElement.height;
-    snapshot.setAttribute('aria-hidden','true');snapshot.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:1';
-    const context=snapshot.getContext('2d');context.drawImage(renderer.domElement,0,0);
-    if(scenerySnapshot){
-      context.globalAlpha=Number(getComputedStyle(scenerySnapshot).opacity);
-      context.drawImage(scenerySnapshot,0,0);context.globalAlpha=1;
-      scenerySnapshot.getAnimations().forEach(animation=>animation.cancel());scenerySnapshot.remove();
-    }
-    scenerySnapshot=snapshot;container.append(snapshot);
-    const animation=snapshot.animate([{opacity:1},{opacity:0}],{duration:900,easing:'cubic-bezier(.3,0,.2,1)',fill:'forwards'});
-    animation.finished.then(()=>{snapshot.remove();if(scenerySnapshot===snapshot)scenerySnapshot=undefined;},()=>{});
-  }
+  let sceneTransition,pendingBiome;
   function setBiome(b){
     if(sceneTransition){
       if(sceneTransition.phase==='out'){sceneTransition.to=b;sceneTransition.skyTo.set(night?'#101c35':palettes[b].sky);}
@@ -512,19 +504,26 @@ export async function createWorld(container,options={}){
   }
   function setNight(value){
     if(night===value)return;
-    if(!sceneTransition)beginSceneryTransition();
     night=value;ufo.visible=false;ufoFlight=undefined;nextUfoAt=elapsed+10+random()*8;
-    updatePalette();
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches){nightMix=night?1:0;themeTransition=undefined;updatePalette();}
+    else themeTransition={from:nightMix,to:night?1:0,time:0};
     if(sceneTransition){sceneTransition.skyFrom.copy(scene.background);sceneTransition.skyTo.set(night?'#101c35':palettes[sceneTransition.to].sky);}
-    render();
+    requestTick();render();
+  }
+  function animateTheme(delta){
+    if(!themeTransition)return;
+    const transition=themeTransition;transition.time+=delta;
+    const p=Math.min(1,transition.time/.75),smooth=p*p*(3-2*p);
+    nightMix=THREE.MathUtils.lerp(transition.from,transition.to,smooth);
+    updatePalette();if(p===1)themeTransition=undefined;
   }
   function animateSceneTransition(delta){
     if(!sceneTransition)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){finishSceneTransition();return;}
-    const transition=sceneTransition,incoming=transition.phase==='in',duration=incoming?3:2;
+    const transition=sceneTransition,incoming=transition.phase==='in',duration=incoming?3:.9;
     transition.time+=delta;
     // Keep the same fog sweep and fade envelope; accelerate only its approach.
-    transition.age=Math.min(incoming?6:3,transition.age+delta*(incoming?1:1.5));
+    transition.age=Math.min(incoming?6:3,transition.age+delta*(incoming?1:3/.9));
     const p=Math.min(1,transition.time/duration),ease=p*p*(3-2*p);
     const progress=Math.min(1,transition.age/6),sweep=progress*progress*(3-2*progress);
     const travel=-65+sweep*230;
@@ -590,6 +589,9 @@ export async function createWorld(container,options={}){
     }
   }
   const colorA=new THREE.Color(),colorB=new THREE.Color();
+  const themeColors=new Map();
+  const tint=value=>{if(!themeColors.has(value))themeColors.set(value,new THREE.Color(value));return themeColors.get(value);};
+  const blend=(color,day,night)=>color.copy(tint(day)).lerp(tint(night),nightMix);
   function updatePalette(){
     container.dataset.scene=biome;
     updateWaterReflection();
@@ -599,23 +601,17 @@ export async function createWorld(container,options={}){
     }
     if(biome==='coast'){scene.background.set(palettes.coast.sky);scene.fog.color.set(palettes.coast.sky);}
     else{colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);}
-    nightSky.visible=night;cloudGroup.visible=!night;
+    nightSky.visible=nightMix>.001;cloudGroup.visible=nightMix<.999;
+    moonMaterial.opacity=starMaterial.opacity=nightMix;whiteMat.opacity=1-nightMix;
     sea.visible=biome==='coast';
     coastUniforms.coastEnabled.value=biome==='coast'?1:0;
-    coastUniforms.coastNight.value=night?1:0;
-    if(night){
-      scene.background.set('#101c35');scene.fog.color.set('#101c35');
-      hemi.color.set('#a9c9ff');hemi.groundColor.set('#384252');hemi.intensity=1.35;
-      sun.color.set('#adcaff');sun.intensity=1.55;renderer.toneMappingExposure=.95;
-      dark.color.set('#7d939e');darkSide.color.set('#94a9b1');
-      waterMat.color.set('#62899c');beachMat.color.set('#ffffff').multiplyScalar(.68);
-      for(const mat of Object.values(materials))mat.color.multiplyScalar(.68);
-    }else{
-      hemi.color.set('#f2faff');hemi.groundColor.set('#b5ad8c');hemi.intensity=2.2;
-      sun.color.set('#fff5dc');sun.intensity=2.8;renderer.toneMappingExposure=1.02;
-      dark.color.set('#535d60');darkSide.color.set('#657173');
-      waterMat.color.set('#ffffff');beachMat.color.set('#ffffff');
-    }
+    coastUniforms.coastNight.value=nightMix;
+    scene.background.lerp(tint('#101c35'),nightMix);scene.fog.color.copy(scene.background);
+    blend(hemi.color,'#f2faff','#a9c9ff');blend(hemi.groundColor,'#b5ad8c','#384252');hemi.intensity=THREE.MathUtils.lerp(2.2,1.35,nightMix);
+    blend(sun.color,'#fff5dc','#adcaff');sun.intensity=THREE.MathUtils.lerp(2.8,1.55,nightMix);renderer.toneMappingExposure=THREE.MathUtils.lerp(1.02,.95,nightMix);
+    blend(dark.color,'#535d60','#7d939e');blend(darkSide.color,'#657173','#94a9b1');
+    blend(waterMat.color,'#ffffff','#62899c');beachMat.color.set('#ffffff').multiplyScalar(1-.32*nightMix);
+    for(const mat of Object.values(materials))mat.color.multiplyScalar(1-.32*nightMix);
     chunks.forEach(({trees,cacti,palms,plants,flowerBed})=>{
       trees.visible=biome==='grass';cacti.visible=biome==='desert';palms.visible=biome==='coast';
       plants.visible=biome==='grass';flowerBed.visible=biome==='grass';
@@ -680,13 +676,18 @@ export async function createWorld(container,options={}){
   let last=performance.now(),lastReport=last,frames=0,raf=0;
   function render(){volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000;options.onStats?.({fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval});lastReport=now;frames=0;}}
-  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
-  function requestTick(){if(!raf&&(!paused||sceneTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
+  function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
+  function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
   window.addEventListener('resize',resize);
   document.addEventListener('visibilitychange',()=>{last=performance.now();lastReport=last;frames=0;if(document.hidden){cancelAnimationFrame(raf);raf=0;}else{render();requestTick();}});
   renderer.domElement.addEventListener('webglcontextlost',event=>{event.preventDefault();cancelAnimationFrame(raf);raf=0;document.querySelector('#render-status').textContent='3D 畫面暫時中斷；工具入口仍可使用。';});
   renderer.domElement.addEventListener('webglcontextrestored',()=>{last=performance.now();document.querySelector('#render-status').textContent='3D 世界已恢復';render();requestTick();});
-  updatePalette();resize();setQuality(quality);report(true);requestTick();
+  updatePalette();resize();setQuality(quality);
+  // Warm the sky programs while loading so first night/day use does not compile on click.
+  const skyVisible=nightSky.visible,cloudsVisible=cloudGroup.visible;
+  nightSky.visible=cloudGroup.visible=true;
+  try{await renderer.compileAsync(scene,camera);}finally{nightSky.visible=skyVisible;cloudGroup.visible=cloudsVisible;}
+  last=performance.now();report(true);requestTick();
   return {icons,setPaused,setBiome,setQuality,setNight,getUfoRoute,setUfoRoute,setUfoRoutes,getUfoGuide,previewUfoRoute};
 
   function makeIcons(sharedRenderer){
