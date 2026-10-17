@@ -478,6 +478,7 @@ export async function createWorld(container,options={}){
   // One finite volume moves continuously through the 45-degree running axis.
   const mistUniforms={tint:{value:new THREE.Color()}};
   const groundMist={mistSeal:{value:0},mistFront:{value:-65},mistBack:{value:-185},mistAnchor:{value:new THREE.Vector2()}};
+  const mistApproachDuration=.9;
   let sceneTransition,pendingBiome;
   function setBiome(b){
     if(sceneTransition){
@@ -520,11 +521,11 @@ export async function createWorld(container,options={}){
   function animateSceneTransition(delta){
     if(!sceneTransition)return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches){finishSceneTransition();return;}
-    const transition=sceneTransition,incoming=transition.phase==='in',duration=incoming?3:.9;
+    const transition=sceneTransition,incoming=transition.phase==='in',duration=incoming?3:mistApproachDuration;
     transition.time+=delta;
     // Keep the same fog sweep and fade envelope; accelerate only its approach.
-    transition.age=Math.min(incoming?6:3,transition.age+delta*(incoming?1:3/.9));
-    const p=Math.min(1,transition.time/duration),ease=p*p*(3-2*p);
+    transition.age=Math.min(incoming?6:3,transition.age+delta*(incoming?1:3/mistApproachDuration));
+    const p=Math.min(1,transition.time/duration);
     const progress=Math.min(1,transition.age/6),sweep=progress*progress*(3-2*progress);
     const travel=-65+sweep*230;
     groundMist.mistAnchor.value.set(anchorPoint.x,anchorPoint.z);
