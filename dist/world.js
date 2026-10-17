@@ -168,7 +168,7 @@ export async function createWorld(container,options={}){
   }
   function animateUfo(){
     if(!night||matchMedia('(prefers-reduced-motion: reduce)').matches){ufo.visible=false;return;}
-    if(moonTracking.enabled&&!routePreview&&(moonTracking.previewTime!=null||!moonInView)){ufo.visible=false;ufoFlight=undefined;return;}
+    if(moonTracking.enabled&&!routePreview&&(moonTracking.previewTime!=null||!moonInView&&!ufoFlight)){ufo.visible=false;ufoFlight=undefined;return;}
     if(!ufoFlight&&elapsed>=nextUfoAt){ufoFlight=createUfoFlight();ufo.rotation.set(.08,0,0);}
     if(!ufoFlight)return;
     const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
