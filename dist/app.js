@@ -164,6 +164,9 @@ function toggleSettings(force){
 }
 $('#settings-toggle').addEventListener('click',()=>toggleSettings());
 $('#settings-close').addEventListener('click',()=>toggleSettings(false));
+let launcherHidden=false;
+function toggleLauncher(){launcherHidden=!launcherHidden;const launcher=$('.launcher'),button=$('#launcher-toggle');launcher.classList.toggle('is-hidden',launcherHidden);launcher.inert=launcherHidden;button.setAttribute('aria-pressed',String(launcherHidden));button.setAttribute('aria-label',launcherHidden?'顯示工具清單':'隱藏工具清單');button.title=launcherHidden?'顯示工具清單':'隱藏工具清單';button.innerHTML=`<i data-lucide="${launcherHidden?'panel-top-open':'panel-top-close'}" aria-hidden="true"></i>`;refreshIcons();}
+$('#launcher-toggle').addEventListener('click',toggleLauncher);
 document.addEventListener('pointerdown',e=>{
   if($('#location-dialog').open)return;
   if(!$('.quality-picker').contains(e.target))closeQuality();
@@ -235,13 +238,13 @@ try{
   world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report});
   world.setBiome(state.biome);
   const moonSky=initMoonSky(world,{
-    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto};toggleSettings(false);state.auto=false;$('#auto-biome').checked=false;state.night=true;updateNight();return previous;},
+    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;$('#auto-biome').checked=false;state.night=true;updateNight();return previous;},
     endPreview(previous){Object.assign(state,previous);$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
   const {initRouteEditor}=await import('./route-editor.js');
   initRouteEditor(world,{
-    begin(){moonSky.stopPreview();const previous={night:state.night,paused:state.paused,auto:state.auto};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
-    end(previous){Object.assign(state,previous);lastAuto=0;updateNight();updatePause();}
+    begin(){moonSky.stopPreview();const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
+    end(previous){Object.assign(state,previous);lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
   iconURLs=world.icons;
   renderTools();

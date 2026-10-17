@@ -38,7 +38,7 @@ export function initMoonSky(world,{beginPreview,endPreview}){
     for(let i=0;i<=96;i++){
       const state=getMoonSkyState(bounds.start+(bounds.end-bounds.start)*i/96,location),sinAltitude=Math.sin(state.altitude);
       if(state.altitude<-.03){parts.push(null);continue;}
-      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=(1-(.025+sinAltitude*1.62))*height/2;
+      const x=(state.azimuth/Math.PI*1.5+1)*width/2,y=Math.max(26,Math.min(height*.62,(1-(.025+sinAltitude*.88))*height/2));
       parts.push([x,y]);
     }
     let penUp=true,d='',first,last;for(const point of parts){if(!point){penUp=true;continue;}if(!first)first=point;last=point;d+=`${penUp?'M':'L'}${point[0].toFixed(1)} ${point[1].toFixed(1)} `;penUp=false;}
@@ -56,21 +56,22 @@ export function initMoonSky(world,{beginPreview,endPreview}){
   function stopPreview(){
     if(!preview)return;cancelAnimationFrame(raf);raf=0;playing=false;preview=false;
     const panel=$('moon-preview');panel.classList.remove('is-opening');panel.classList.add('is-closing');
-    clearTimeout(previewCloseTimer);previewCloseTimer=setTimeout(()=>{panel.hidden=true;panel.classList.remove('is-closing');},190);
-    $('moon-preview-compass').hidden=true;$('moon-preview-path').setAttribute('hidden','');apply();endPreview(previous);$('moon-preview-start').focus({preventScroll:true});
+    clearTimeout(previewCloseTimer);previewCloseTimer=setTimeout(()=>{panel.hidden=true;panel.classList.remove('is-closing');apply();endPreview(previous);$('moon-preview-start').focus({preventScroll:true});},190);
+    $('moon-preview-compass').hidden=true;$('moon-preview-path').setAttribute('hidden','');
   }
   $('moon-tracking').addEventListener('change',event=>{enabled=event.target.checked;try{localStorage.setItem('tool-portal-moon-tracking',String(enabled));}catch{}apply();});
   $('moon-preview-start').addEventListener('click',()=>{
     if(!location||preview)return;bounds=getLocationDayBounds(location);previewEvents=getLocationMoonTimes(location);previewTime=bounds.start;preview=true;playing=!reduced.matches;previous=beginPreview();
     $('moon-preview-rise').disabled=!previewEvents.rise;$('moon-preview-set').disabled=!previewEvents.set;
-    const panel=$('moon-preview');clearTimeout(previewCloseTimer);panel.hidden=false;panel.classList.remove('is-closing');panel.classList.add('is-opening');requestAnimationFrame(()=>panel.classList.remove('is-opening'));
-    $('moon-preview-compass').hidden=false;$('moon-preview-path').removeAttribute('hidden');drawPath();$('moon-preview-play').disabled=reduced.matches;$('moon-preview-motion-hint').textContent=reduced.matches?'已依減少動態效果偏好停止播放，可拖曳時間。':'東方在畫面左側，月亮由左向右升起、落下。';
-    timeLabel();apply();$('moon-preview-range').focus();lastFrame=0;if(playing)raf=requestAnimationFrame(frame);
+    const reveal=()=>{const panel=$('moon-preview');clearTimeout(previewCloseTimer);panel.hidden=false;panel.classList.remove('is-closing');panel.classList.add('is-opening');requestAnimationFrame(()=>panel.classList.remove('is-opening'));
+      $('moon-preview-compass').hidden=false;$('moon-preview-path').removeAttribute('hidden');drawPath();$('moon-preview-play').disabled=reduced.matches;$('moon-preview-motion-hint').textContent=reduced.matches?'已依減少動態效果偏好停止播放，可拖曳時間。':'東方在畫面左側，月亮由左向右升起、落下。';
+      timeLabel();apply();$('moon-preview-range').focus();lastFrame=0;if(playing)raf=requestAnimationFrame(frame);};
+    setTimeout(reveal,previous.panelDelay??0);
   });
   $('moon-preview-play').addEventListener('click',()=>{if(!preview)return;playing=!playing;if(playing&&previewTime>=bounds.end-1)previewTime=bounds.start;lastFrame=0;timeLabel();cancelAnimationFrame(raf);if(playing)raf=requestAnimationFrame(frame);});
   $('moon-preview-range').addEventListener('input',event=>{if(!preview)return;playing=false;cancelAnimationFrame(raf);previewTime=bounds.start+Number(event.target.value)/1440*(bounds.end-bounds.start-1);timeLabel();apply();});
   for(const type of ['rise','set'])$(`moon-preview-${type}`).addEventListener('click',()=>{if(!preview||!previewEvents[type])return;playing=false;cancelAnimationFrame(raf);previewTime=previewEvents[type].getTime();timeLabel();apply();});
-  $('moon-preview-stop').addEventListener('click',stopPreview);
+  $('moon-preview-close').addEventListener('click',stopPreview);
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&preview){event.preventDefault();stopPreview();}});
   reduced.addEventListener('change',()=>{if(preview){$('moon-preview-play').disabled=reduced.matches;if(reduced.matches){playing=false;cancelAnimationFrame(raf);timeLabel();}}});
   document.addEventListener('visibilitychange',()=>{lastFrame=0;});

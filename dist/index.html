@@ -20,6 +20,7 @@
     <div class="header-controls">
       <button id="night" class="control icon-control" aria-label="切換黑夜模式" aria-pressed="false" title="切換黑夜模式"><i data-lucide="moon" aria-hidden="true"></i></button>
       <button id="pause" class="control icon-control" aria-label="暫停動畫" title="暫停動畫" aria-pressed="false"><span id="pause-icon" aria-hidden="true"><i data-lucide="pause"></i></span></button>
+      <button id="launcher-toggle" class="control icon-control" aria-label="隱藏工具清單" title="隱藏工具清單" aria-pressed="false"><i data-lucide="panel-top-close" aria-hidden="true"></i></button>
       <button id="settings-toggle" class="control icon-control" aria-label="顯示設定" aria-expanded="false" aria-controls="settings"><i data-lucide="settings" aria-hidden="true"></i></button>
     </div>
   </header>
@@ -70,11 +71,12 @@
     <svg id="route-overlay" aria-label="可拖曳的飛碟航線"><path id="route-hit" fill="none"/><path id="route-path" fill="none"/><path id="route-control-lines" fill="none"/><g id="route-control-handles"></g><g id="route-handles"></g></svg>
     <aside class="route-panel" aria-labelledby="route-title">
       <div class="route-scroll">
-      <div class="settings-head"><span><small class="panel-kicker">飛行設計</small><h2 id="route-title">飛碟航線</h2></span><button id="route-close" class="control icon-control" aria-label="關閉航線編輯器"><i data-lucide="x" aria-hidden="true"></i></button></div>
+      <div class="settings-head"><span><small class="panel-kicker">飛行設計</small><h2 id="route-title">飛碟航線</h2></span><button id="route-close" class="panel-return" aria-label="返回設定"><i data-lucide="arrow-left" aria-hidden="true"></i><span>返回設定</span></button></div>
       <div class="route-picker" id="route-picker">
         <button id="route-choice" type="button" role="combobox" aria-label="選擇航線" aria-haspopup="listbox" aria-controls="route-tabs" aria-expanded="false"><span><strong id="route-choice-name"></strong><small id="route-choice-meta"></small></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
         <div id="route-tabs" class="route-tabs" role="listbox" aria-label="航線" hidden></div>
       </div>
+      <button id="route-dynamic-preview" class="route-dynamic-preview" type="button"><i data-lucide="route" aria-hidden="true"></i>查看動態月亮航線</button>
       <label for="route-name">航線名稱</label><input id="route-name" type="text" maxlength="24" autocomplete="off">
       <div class="route-actions route-manage"><button id="route-add" type="button">新增航線</button><button id="route-delete" type="button">刪除此航線</button></div>
       <details class="route-help"><summary>編輯操作說明</summary><p>編號為完整飛行順序，第一點進場、最後一點離場。選取航點後，拖曳藍色把手調整弧度；Alt 拖曳可獨立調整。雙擊曲線新增航點。</p></details>
@@ -92,7 +94,7 @@
   </section>
 
   <aside id="moon-preview" class="moon-preview" aria-labelledby="moon-preview-title" hidden>
-    <div class="moon-preview-head"><span><small>天空全景預覽</small><h2 id="moon-preview-title">今日月升月落</h2></span><time id="moon-preview-time"></time></div><p id="moon-preview-location"></p><label for="moon-preview-range">預覽時間</label><input id="moon-preview-range" type="range" min="0" max="1440" step="1" value="0"><div class="moon-preview-limits"><span>00:00</span><span>24:00</span></div><div class="moon-preview-actions"><button id="moon-preview-rise" type="button">查看月升</button><button id="moon-preview-set" type="button">查看月落</button></div><p id="moon-preview-motion-hint"></p><p class="moon-preview-note">軌跡依當日方位與高度投影，因此不是幾何正圓；全景模式會放大高度，方便觀察。</p><div class="moon-preview-actions"><button id="moon-preview-play" type="button" aria-pressed="false">播放預覽</button><button id="moon-preview-stop" type="button">回到即時天空</button></div>
+    <div class="settings-head moon-preview-head"><span><small class="panel-kicker">天空預覽</small><h2 id="moon-preview-title">今日月升月落</h2></span><button id="moon-preview-close" class="panel-return" aria-label="返回設定"><i data-lucide="arrow-left" aria-hidden="true"></i><span>返回設定</span></button></div><time id="moon-preview-time"></time><p id="moon-preview-location"></p><label for="moon-preview-range">預覽時間</label><input id="moon-preview-range" type="range" min="0" max="1440" step="1" value="0"><div class="moon-preview-limits"><span>00:00</span><span>24:00</span></div><div class="moon-preview-actions"><button id="moon-preview-rise" type="button">查看月升</button><button id="moon-preview-set" type="button">查看月落</button></div><p id="moon-preview-motion-hint"></p><p class="moon-preview-note">軌跡依當日方位與高度投影，因此不是幾何正圓；全景模式會放大高度，方便觀察。</p><div class="moon-preview-actions"><button id="moon-preview-play" type="button" aria-pressed="false">播放預覽</button></div>
   </aside>
   <svg id="moon-preview-path" class="moon-preview-path" aria-hidden="true" hidden><path></path></svg><div id="moon-preview-compass" class="moon-preview-compass" aria-hidden="true" hidden><span>東 E · 月升</span><span>西 W · 月落</span></div>
   <footer class="bottom-bar">

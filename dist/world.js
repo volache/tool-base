@@ -126,7 +126,7 @@ export async function createWorld(container,options={}){
     if(preview){
       const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
       // Keep the moon moving below the horizon so its limb is revealed progressively.
-      const sinAltitude=Math.sin(state.altitude),skyHeight=sinAltitude*1.62;
+      const sinAltitude=Math.sin(state.altitude),skyHeight=sinAltitude*.88;
       moonTarget.set(state.azimuth/Math.PI*1.5,.025+skyHeight,depth).unproject(camera);
       moonPhase.setHorizon(2,.02);
     }else{moonTarget.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
