@@ -81,6 +81,7 @@
       </div>
     </section>
     <section class="settings-section scene-settings"><div class="section-label">場景</div><label class="switch-row"><span><strong>自動輪換場景</strong><small>依指定間隔切換環境</small></span><input type="checkbox" id="auto-biome"></label>
+    <label class="switch-row"><span><strong>天色隨所在地變化</strong><small id="auto-sky-hint">請先設定公司所在地。</small></span><input type="checkbox" id="auto-sky" checked disabled></label>
     <div id="rotation-controls" class="rotation-controls" hidden>
       <label for="rotation-speed">輪換間隔 <output id="rotation-label" for="rotation-speed">每 30 秒</output></label>
       <input id="rotation-speed" type="range" min="10" max="120" step="5" value="30" aria-valuetext="每 30 秒切換場景">

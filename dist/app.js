@@ -1,5 +1,6 @@
 import {tools} from './tools.js';
-import {initCompanyLocation} from './company-location.js';
+import {initCompanyLocation,readCompanyLocation} from './company-location.js';
+import {getSkyNight} from './sky-model.js';
 import {initMoonSky} from './moon-sky.js';
 import {initSunSky} from './sun-sky.js';
 import {initSkySettings} from './sky-settings.js';
@@ -16,6 +17,21 @@ let savedRotation=30;
 try{const value=Number(localStorage.getItem('tool-portal-rotation'));if(value>=10&&value<=120)savedRotation=Math.round(value/5)*5;}catch{}
 const state = { paused: reduced.matches, biome: 'grass', quality: 'balanced', auto: false, rotation:savedRotation, night:savedNight };
 let world;
+// With a company location the sky follows the real sun (and dawn/dusk); the moon/sun button then switches to manual day/night.
+let autoSky=true;try{autoSky=localStorage.getItem('tool-portal-auto-sky')!=='false';}catch{}
+let routeEditing=false;
+function saveAutoSky(){try{localStorage.setItem('tool-portal-auto-sky',String(autoSky));}catch{}}
+function autoSkyLocation(){return autoSky&&!routeEditing?readCompanyLocation():null;}
+function applyAutoSky(){
+  const location=autoSkyLocation(),saved=readCompanyLocation();
+  $('#auto-sky').checked=autoSky;$('#auto-sky').disabled=!saved;
+  $('#auto-sky-hint').textContent=!saved?'請先設定公司所在地。':autoSky?'依所在地真實的日出日落調整日夜與晨昏':'以右上角按鈕手動切換日夜';
+  if(!world)return;
+  world.setAutoSky(location);
+  if(location)state.night=world.isNight();
+  updateNight();
+}
+{const location=autoSkyLocation();if(location)state.night=getSkyNight(globalThis.SunCalc.getPosition(new Date(),location.lat,location.lng).altitude)>.5;}
 let activityMode='standard';try{const saved=localStorage.getItem('tool-portal-activity');if(['quiet','standard','rich'].includes(saved))activityMode=saved;}catch{}
 function updateActivity(){document.querySelectorAll('button[data-activity]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.activity===activityMode)));world?.setActivity(activityMode);}
 document.querySelectorAll('button[data-activity]').forEach(button=>button.addEventListener('click',()=>{activityMode=button.dataset.activity;try{localStorage.setItem('tool-portal-activity',activityMode);}catch{}updateActivity();}));
@@ -145,6 +161,7 @@ function updateNight(){
   refreshIcons();
 }
 $('#night').addEventListener('click',()=>{
+  if(autoSkyLocation()){autoSky=false;saveAutoSky();applyAutoSky();}
   state.night=!state.night;updateNight();
   try{localStorage.setItem('tool-portal-night',String(state.night));}catch{}
   $('#announcer').textContent=state.night?'已切換黑夜模式':'已切換白天模式';
@@ -242,20 +259,22 @@ function report(stats){
 renderTools();updatePause();updateNight();
 try{
   const {createWorld}=await import('./world.js');
-  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report});
+  world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report,onSkyNight(night){state.night=night;updateNight();}});
+  applyAutoSky();
+  $('#auto-sky').addEventListener('change',event=>{autoSky=event.target.checked;saveAutoSky();applyAutoSky();$('#announcer').textContent=autoSky?'天色已改為隨所在地時間變化':'天色已改為手動切換';});
+  window.addEventListener('company-location-change',applyAutoSky);
   world.setBiome(state.biome);
   updateActivity();
   const skyPreview=()=>({
     beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);$('#settings-toggle').disabled=true;state.auto=false;$('#auto-biome').checked=false;return previous;},
-    setPreviewNight(night){if(state.night!==night){state.night=night;updateNight();}},
-    endPreview(previous){Object.assign(state,previous);$('#settings-toggle').disabled=false;$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
+    endPreview(previous){Object.assign(state,previous);if(autoSkyLocation())state.night=world.isNight();$('#settings-toggle').disabled=false;$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
   const moonSky=initMoonSky(world,skyPreview());
   const sunSky=initSunSky(world,skyPreview());
   const {initRouteEditor}=await import('./route-editor.js');
   initRouteEditor(world,{
-    begin(){moonSky.stopPreview();sunSky.stopPreview();const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
-    end(previous){Object.assign(state,previous);lastAuto=0;updateNight();updatePause();toggleSettings(true);}
+    begin(){moonSky.stopPreview();sunSky.stopPreview();routeEditing=true;applyAutoSky();const previous={night:state.night,paused:state.paused,auto:state.auto,panelDelay:190};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
+    end(previous){routeEditing=false;Object.assign(state,previous);applyAutoSky();lastAuto=0;updateNight();updatePause();toggleSettings(true);}
   });
   iconURLs=world.icons;
   renderTools();

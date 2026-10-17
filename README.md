@@ -37,7 +37,7 @@ node preview.mjs
 - dist/tools.js：可替換的工具目錄。
 - dist/world.js：Three.js 場景、恐龍、環境循環、3D 圖示與畫質控制。
 - dist/forest-world.js、snow-world.js、sun-world.js、day-life.js、tumbleweed.js、volumetric-fog.js：各環境與氛圍效果。
-- dist/company-location.js、sky-projection.js、sun-sky.js、moon-sky.js、moon-phase.js、sky-settings.*：公司所在地、日月天空與設定面板。
+- dist/company-location.js、sky-model.js、sky-projection.js、sun-sky.js、moon-sky.js、moon-phase.js、sky-settings.*：公司所在地、日月天空與設定面板。
 - dist/route-editor.*、route-curves.js、route-data.js、ufo-default-route.js：UFO 航線編輯與預設航線。
 - dist/vendor/：固定版本 Three.js 0.180.0、SunCalc、Lucide 與各自授權。
 - preview.mjs：只綁定本機的靜態預覽伺服器。
@@ -50,6 +50,12 @@ npm run verify
 ```
 
 `npm run check` 對 dist/ 所有 JS 與 preview.mjs 做語法檢查；`npm run test` 執行 scripts/check-*.mjs。
+
+## 天色與晨昏
+
+設定公司所在地後，天色預設隨所在地的真實太陽高度連續變化：夜晚 → 黎明（粉橘）→ 白天 → 黃昏（橘紅）→ 夜晚。晨昏的時間由當天的日出日落自然決定，不使用固定時刻。即時模式與月亮、太陽預覽共用同一套天色計算，預覽某個時間點看到的天色，就是即時模式在該時間點的樣子。預覽播放在晨昏時會自動放慢，方便觀賞。
+
+設定中的「天色隨所在地變化」可關閉；關閉後，或按右上角月亮／太陽按鈕，會改為手動切換日夜。未設定所在地時一律為手動。
 
 ## 原型範圍
 

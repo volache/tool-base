@@ -104,7 +104,7 @@ export function initRouteEditor(world,{begin,end}){
   function scheduleDraft(){if(!pendingFrame)pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;if(active)applyDraft();});}
   function open(){
     if(active)return;active=true;viewingDynamic=false;previous=begin();const all=copy(saved??defaultRouteSet());staticRoutes=all.routes;dynamicRoutes=all.dynamicRoutes;routes=staticRoutes;routeIndex=0;selectedPoint=0;config=routes[0];routeTabs();document.querySelectorAll('header,main,footer,#settings').forEach(el=>el.inert=true);
-    const reveal=()=>{if(!active)return;updateRouteMode();root.hidden=false;root.classList.remove('is-closing');root.classList.add('is-opening');requestAnimationFrame(()=>root.classList.remove('is-opening'));world.previewUfoRoute(true);applyDraft();const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reveal=()=>{if(!active)return;updateRouteMode();root.hidden=false;root.classList.remove('is-closing');root.classList.add('is-opening');{const panel=root.querySelector('.route-panel'),done=event=>{if(event&&event.target!==panel)return;root.classList.remove('is-opening');panel.removeEventListener('animationend',done);};panel.addEventListener('animationend',done);setTimeout(done,320);}world.previewUfoRoute(true);applyDraft();const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
       $('route-replay').disabled=reduced;$('route-status').textContent=reduced?'已依系統偏好停止動畫，仍可編輯與匯出航線。':'儲存後依序輪換所有航線，僅套用在此瀏覽器。';$('route-close').focus();};
     setTimeout(reveal,previous.panelDelay??0);
   }

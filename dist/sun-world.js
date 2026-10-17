@@ -1,4 +1,4 @@
-import {getSunSkyState,getSunPanoramaHeight,getSunPanoramaX,getTwilightState} from './sun-sky.js';
+import {getSunSkyState,getSunPanoramaHeight,getSunPanoramaX} from './sun-sky.js';
 export function createSunWorld(THREE,{scene,camera}){
   const uniforms={opacity:{value:1},warmth:{value:0},horizon:{value:0}};
   const material=new THREE.ShaderMaterial({transparent:true,depthTest:false,depthWrite:false,toneMapped:false,uniforms,
@@ -9,7 +9,7 @@ export function createSunWorld(THREE,{scene,camera}){
   const rays=new THREE.InstancedMesh(new THREE.BoxGeometry(.23,.65,.18),material,8),dummy=new THREE.Object3D();group.add(rays);rays.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   for(let i=0;i<8;i++){const a=i*Math.PI/4;dummy.position.set(Math.sin(a)*1.78,Math.cos(a)*1.78,0);dummy.rotation.z=-a;dummy.updateMatrix();rays.setMatrixAt(i,dummy.matrix);}
   const fixed=new THREE.Vector3(-23,19,-52),target=new THREE.Vector3(),screen=new THREE.Vector3();
-  group.position.copy(fixed);let config={},transition,second=-1,opacity=1,twilight={amount:0,dusk:false};
+  group.position.copy(fixed);let config={},transition,second=-1,opacity=1;
   function setTracking(next){
     if(config.enabled!==next.enabled||config.location!==next.location||(config.previewTime==null)!==(next.previewTime==null))transition={start:performance.now(),position:group.position.clone(),opacity,warmth:uniforms.warmth.value,horizon:uniforms.horizon.value};
     config=next;second=-1;
@@ -21,7 +21,6 @@ export function createSunWorld(THREE,{scene,camera}){
     const tracked=config.enabled&&config.location,time=config.previewTime??Date.now();let state;
     if(tracked){state=getSunSkyState(time,config.location);const depth=screen.copy(fixed).project(camera).z;target.set(getSunPanoramaX(state,time,config.location),getSunPanoramaHeight(state,time,config.location),depth).unproject(camera);}
     else target.copy(fixed);
-    twilight=tracked?getTwilightState(state):{amount:0,dusk:false};
     const desired=daylight*(state?THREE.MathUtils.smoothstep(state.altitude,-.075,.025):1);
     let warmth=state?1-THREE.MathUtils.smoothstep(state.altitude,0,.35):0,horizon=tracked?1:0;
     if(transition){
@@ -37,5 +36,5 @@ export function createSunWorld(THREE,{scene,camera}){
       config.onStatus?.({...state,inView:group.visible&&Math.abs(screen.x)<1.04&&Math.abs(screen.y)<1.04,screen:{x:screen.x,y:screen.y}});
     }
   }
-  return {setTracking,update,isTransitioning:()=>!!transition,getTwilight:()=>twilight};
+  return {setTracking,update,isTransitioning:()=>!!transition};
 }
