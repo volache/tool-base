@@ -2,6 +2,7 @@ import {tools} from './tools.js';
 import {initCompanyLocation,readCompanyLocation} from './company-location.js';
 import {getSkyNight} from './sky-model.js';
 import {createWeatherService,weatherPresets,weatherLabels} from './weather.js';
+import {createCombobox} from './combobox.js';
 import {initMoonSky} from './moon-sky.js';
 import {initSunSky} from './sun-sky.js';
 import {initSkySettings} from './sky-settings.js';
@@ -183,7 +184,7 @@ function toggleSettings(force){
   clearTimeout(settingsCloseTimer);
   if(open){panel.hidden=false;panel.classList.remove('is-closing');requestAnimationFrame(()=>panel.classList.add('is-open'));}
   else{
-    closeQuality();panel.classList.remove('is-open');panel.classList.add('is-closing');
+    closeQuality();document.dispatchEvent(new Event('close-popups'));panel.classList.remove('is-open');panel.classList.add('is-closing');
     settingsCloseTimer=setTimeout(()=>{panel.hidden=true;panel.classList.remove('is-closing');$('#settings-toggle').focus({preventScroll:true});},190);
   }
   $('#settings-toggle').setAttribute('aria-expanded',String(open));
@@ -285,7 +286,12 @@ try{
     world.setWeather(weatherOverride?weatherPresets[weatherOverride]:(weatherOn&&location?snapshot.state:null));
   }
   $('#weather-link').addEventListener('change',event=>{weatherOn=event.target.checked;try{localStorage.setItem('tool-portal-weather',String(weatherOn));}catch{}weatherService.setEnabled(weatherOn);renderWeather();$('#announcer').textContent=weatherOn?'已開啟天氣連動':'已關閉天氣連動';});
-  $('#weather-preview').addEventListener('change',event=>{weatherOverride=event.target.value;renderWeather();});
+  const weatherIcons={'':'radio-tower',clear:'sun',partly:'cloud-sun',cloudy:'cloud',fog:'cloud-fog',drizzle:'cloud-drizzle',rain:'cloud-rain',snow:'snowflake',thunder:'cloud-lightning',windy:'wind'};
+  createCombobox({
+    button:$('#weather-preview'),list:$('#weather-preview-options'),value:'',
+    items:[{value:'',label:'依實際天氣'},...Object.keys(weatherPresets).map(kind=>({value:kind,label:weatherLabels[kind]}))].map(item=>({...item,icon:weatherIcons[item.value]})),
+    onChange(value){weatherOverride=value;renderWeather();$('#announcer').textContent=value?`天氣預覽：${weatherLabels[value]}`:'天氣預覽已改為依實際天氣';}
+  });
   window.addEventListener('company-location-change',()=>{weatherService.refresh();renderWeather();});
   weatherService.setEnabled(weatherOn);weatherService.start();renderWeather();
   world.setBiome(state.biome);

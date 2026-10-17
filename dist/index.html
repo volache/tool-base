@@ -83,7 +83,9 @@
     <section class="settings-section scene-settings"><div class="section-label">場景</div><label class="switch-row"><span><strong>自動輪換場景</strong><small>依指定間隔切換環境</small></span><input type="checkbox" id="auto-biome"></label>
     <label class="switch-row"><span><strong>天色隨所在地變化</strong><small id="auto-sky-hint">請先設定公司所在地。</small></span><input type="checkbox" id="auto-sky" checked disabled></label>
     <label class="switch-row"><span><strong>天氣連動</strong><small id="weather-status">請先設定公司所在地。</small></span><input type="checkbox" id="weather-link" checked disabled></label>
-    <div class="weather-preview"><label for="weather-preview">天氣預覽</label><select id="weather-preview"><option value="">依實際天氣</option><option value="clear">晴朗</option><option value="partly">多雲</option><option value="cloudy">陰天</option><option value="fog">霧</option><option value="drizzle">毛毛雨</option><option value="rain">下雨</option><option value="snow">下雪</option><option value="thunder">雷雨</option><option value="windy">大風</option></select></div>
+    <div class="weather-preview"><label id="weather-preview-field" for="weather-preview">天氣預覽</label>
+      <div class="combo"><button id="weather-preview" class="combo-button" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="weather-preview-options" aria-labelledby="weather-preview-field weather-preview-label"><span id="weather-preview-label" class="combo-label">依實際天氣</span><i data-lucide="chevron-down" class="combo-chevron" aria-hidden="true"></i></button>
+      <ul id="weather-preview-options" class="combo-list" role="listbox" aria-labelledby="weather-preview-field" hidden></ul></div></div>
     <div id="rotation-controls" class="rotation-controls" hidden>
       <label for="rotation-speed">輪換間隔 <output id="rotation-label" for="rotation-speed">每 30 秒</output></label>
       <input id="rotation-speed" type="range" min="10" max="120" step="5" value="30" aria-valuetext="每 30 秒切換場景">
