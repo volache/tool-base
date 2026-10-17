@@ -10,17 +10,17 @@ export function getMoonPhase(date=new Date()){
 }
 
 export function createMoonPhase(THREE){
-  const localLight=new THREE.Vector3(),towardViewer=new THREE.Vector3(),screenRight=new THREE.Vector3();
-  const uniforms={lightDirection:{value:new THREE.Vector3()},opacity:{value:1},litColor:{value:new THREE.Color('#fff3ce')},darkColor:{value:new THREE.Color('#1b2941')}};
+  const localLight=new THREE.Vector3(),baseLight=new THREE.Vector3(),towardViewer=new THREE.Vector3(),screenRight=new THREE.Vector3(),screenUp=new THREE.Vector3();
+  const uniforms={lightDirection:{value:new THREE.Vector3()},opacity:{value:1},litColor:{value:new THREE.Color('#fff3ce')},darkColor:{value:new THREE.Color('#1b2941')},horizonMode:{value:0},horizonY:{value:0}};
   const material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,toneMapped:false,uniforms,
-    vertexShader:`varying vec3 vNormal;void main(){vNormal=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader:`varying vec3 vNormal;uniform vec3 lightDirection;uniform vec3 litColor;uniform vec3 darkColor;uniform float opacity;void main(){float sunlight=dot(normalize(vNormal),lightDirection);float terminator=smoothstep(-.018,.018,sunlight);vec3 color=mix(darkColor,litColor*(.88+.12*max(sunlight,0.)),terminator);gl_FragColor=vec4(color,opacity);
+    vertexShader:`varying vec3 vNormal;varying float vHeight;varying vec4 vClip;void main(){vNormal=normalize(normalMatrix*normal);vHeight=(modelMatrix*vec4(position,1.)).y-cameraPosition.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);vClip=gl_Position;}`,
+    fragmentShader:`varying vec3 vNormal;varying float vHeight;varying vec4 vClip;uniform float horizonMode;uniform float horizonY;uniform vec3 lightDirection;uniform vec3 litColor;uniform vec3 darkColor;uniform float opacity;void main(){if(horizonMode>.5&&horizonMode<1.5&&vHeight<0.)discard;if(horizonMode>1.5&&vClip.y/vClip.w<horizonY)discard;float sunlight=dot(normalize(vNormal),lightDirection);float terminator=smoothstep(-.018,.018,sunlight);vec3 color=mix(darkColor,litColor*(.88+.12*max(sunlight,0.)),terminator);gl_FragColor=vec4(color,opacity);
     #include <colorspace_fragment>
     }`});
   let lastMinute=-1;
   function update(now=Date.now()){
     const minute=Math.floor(now/60000);if(minute===lastMinute)return;lastMinute=minute;
-    const data=getMoonPhase(new Date(now));localLight.fromArray(data.light);
+    const data=getMoonPhase(new Date(now));baseLight.fromArray(data.light);localLight.copy(baseLight);
     const name=document.getElementById('moon-phase-name'),fraction=document.getElementById('moon-phase-fraction');
     if(name)name.textContent=data.name;
     if(fraction)fraction.textContent=`亮面 ${Math.round(data.fraction*100)}%`;
@@ -31,7 +31,9 @@ export function createMoonPhase(THREE){
   function updateView(moon,camera){
     moon.getWorldPosition(towardViewer).applyMatrix4(camera.matrixWorldInverse).negate().normalize();
     screenRight.set(1,0,0).addScaledVector(towardViewer,-towardViewer.x).normalize();
-    uniforms.lightDirection.value.copy(towardViewer).multiplyScalar(localLight.z).addScaledVector(screenRight,localLight.x);
+    screenUp.crossVectors(towardViewer,screenRight).normalize();
+    uniforms.lightDirection.value.copy(towardViewer).multiplyScalar(localLight.z).addScaledVector(screenRight,localLight.x).addScaledVector(screenUp,localLight.y);
   }
-  return {material,update,updateView,setOpacity:value=>uniforms.opacity.value=value};
+  function setOrientation(angle){localLight.copy(baseLight);if(angle==null)return;const magnitude=Math.sqrt(Math.max(0,1-localLight.z**2));localLight.x=-Math.sin(angle)*magnitude;localLight.y=Math.cos(angle)*magnitude;}
+  return {material,update,updateView,setOrientation,setOpacity:value=>uniforms.opacity.value=value,setHorizon:(mode,y=0)=>{uniforms.horizonMode.value=mode;uniforms.horizonY.value=y;}};
 }

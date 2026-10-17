@@ -1,5 +1,6 @@
 import {tools} from './tools.js';
 import {initCompanyLocation} from './company-location.js';
+import {initMoonSky} from './moon-sky.js';
 import './vendor/lucide.min.js';
 
 const $ = (s) => document.querySelector(s);
@@ -113,7 +114,7 @@ input.addEventListener('input',transitionTools);
 $('#clear-search').addEventListener('click',()=>{input.value='';transitionTools();input.focus();});
 $('#google-search-empty').addEventListener('click',searchGoogle);
 document.addEventListener('keydown',e=>{
-  if($('#location-dialog').open)return;
+  if($('#location-dialog').open||!$('#moon-preview').hidden)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(dialog.open){closeDialog({focusTarget:input});return;}input.focus();input.select();}
   if(e.key==='Escape'&&!dialog.open){if(!$('#settings').hidden)toggleSettings(false);else if(currentQuery){input.value='';transitionTools();}}
 });
@@ -221,9 +222,13 @@ try{
   const {createWorld}=await import('./world.js');
   world=await createWorld($('#world'),{paused:state.paused,biome:state.biome,quality:state.quality,night:state.night,reducedMotion:reduced.matches,onStats:report});
   world.setBiome(state.biome);
+  const moonSky=initMoonSky(world,{
+    beginPreview(){const previous={night:state.night,paused:state.paused,auto:state.auto};toggleSettings(false);state.auto=false;$('#auto-biome').checked=false;state.night=true;updateNight();return previous;},
+    endPreview(previous){Object.assign(state,previous);$('#auto-biome').checked=state.auto;lastAuto=0;updateNight();updatePause();toggleSettings(true);}
+  });
   const {initRouteEditor}=await import('./route-editor.js');
   initRouteEditor(world,{
-    begin(){const previous={night:state.night,paused:state.paused,auto:state.auto};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
+    begin(){moonSky.stopPreview();const previous={night:state.night,paused:state.paused,auto:state.auto};toggleSettings(false);state.auto=false;state.paused=reduced.matches;state.night=true;updateNight();updatePause();return previous;},
     end(previous){Object.assign(state,previous);lastAuto=0;updateNight();updatePause();}
   });
   iconURLs=world.icons;

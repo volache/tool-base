@@ -5,6 +5,7 @@ import {defaultUfoRoute} from './ufo-default-route.js';
 import {createSnowWorld} from './snow-world.js';
 import {createForestWorld} from './forest-world.js';
 import {createMoonPhase} from './moon-phase.js';
+import {getMoonSkyState} from './moon-sky.js';
 
 // Everything in this scene is real geometry. No generated image is used as the background.
 // Instancing keeps the many brick studs and terrain pieces in a small number of draw calls.
@@ -102,6 +103,33 @@ export async function createWorld(container,options={}){
   const nightSky=new THREE.Group();scene.add(nightSky);
   const moonPhase=createMoonPhase(THREE);
   const moon=new THREE.Mesh(new THREE.SphereGeometry(1.35,48,32),moonPhase.material);moon.position.set(23,18,-48);nightSky.add(moon);
+  const fixedMoonPosition=moon.position.clone(),moonScreen=new THREE.Vector3();
+  let moonTracking={enabled:false},moonInView=true,moonStatusSecond=-1;
+  function updateMoonPosition(){
+    const tracking=moonTracking.enabled&&moonTracking.location&&!routePreview;
+    const time=tracking?(moonTracking.previewTime??Date.now()):Date.now();
+    moonPhase.update(time);
+    if(!tracking){moon.position.copy(fixedMoonPosition);moon.visible=true;moonInView=true;moonPhase.material.depthTest=true;moonPhase.setOrientation(null);moonPhase.setHorizon(0);moonPhase.setOpacity(nightMix);return;}
+    const state=getMoonSkyState(time,moonTracking.location),preview=moonTracking.previewTime!=null;
+    // The panorama has a screen-space horizon; the live sky uses terrain depth.
+    moonPhase.material.depthTest=!preview;
+    if(preview){
+      const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
+      moon.position.set(state.azimuth/Math.PI*1.5,.02+Math.sin(state.altitude)*.84,depth).unproject(camera);
+      moonPhase.setHorizon(2,.02);
+    }else{moon.position.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
+    moonPhase.setOrientation(state.tilt);moonPhase.setOpacity(.65+.35*nightMix);
+    moon.visible=state.altitude>-.03;
+    moonScreen.copy(moon.position).project(camera);
+    moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
+    nightSky.visible=true;
+    const second=Math.floor(time/1000);if(second!==moonStatusSecond){moonStatusSecond=second;moonTracking.onStatus?.({...state,inView:moonInView});}
+  }
+  function setMoonTracking(config){
+    const modeChanged=moonTracking.enabled!==config.enabled||(moonTracking.previewTime==null)!==(config.previewTime==null)||moonTracking.location!==config.location;
+    moonTracking=config;if(modeChanged){ufoFlight=undefined;ufo.visible=false;moonStatusSecond=-1;}
+    if(paused)render();requestTick();
+  }
   const starPositions=[];
   for(let i=0;i<85;i++)starPositions.push((random()-.5)*150,12+random()*42,-60-random()*45);
   const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
@@ -120,7 +148,8 @@ export async function createWorld(container,options={}){
   function createUfoFlight(){
     const index=ufoRoute++;
     if(customUfoRoutes.length){const route=customUfoRoutes[index%customUfoRoutes.length];customUfoCurve=route.curve;ufoDuration=route.duration;}
-    return {start:elapsed,duration:ufoDuration,variant:0,radius:5.5,phase:0,routeIndex:index};
+    if(moonTracking.enabled&&!routePreview&&ufoRouteConfigs.length)customUfoCurve=buildUfoCurve(structuredClone(ufoRouteConfigs[index%ufoRouteConfigs.length]));
+    return {start:elapsed,duration:ufoDuration,variant:0,radius:5.5,phase:0,routeIndex:index,anchor:moon.position.clone()};
   }
   function sampleUfoFlight(flight,t,target){
     const {variant,radius,phase}=flight,direction=variant===1?-1:1;
@@ -139,6 +168,7 @@ export async function createWorld(container,options={}){
   }
   function animateUfo(){
     if(!night||matchMedia('(prefers-reduced-motion: reduce)').matches){ufo.visible=false;return;}
+    if(moonTracking.enabled&&!routePreview&&(moonTracking.previewTime!=null||!moonInView)){ufo.visible=false;ufoFlight=undefined;return;}
     if(!ufoFlight&&elapsed>=nextUfoAt){ufoFlight=createUfoFlight();ufo.rotation.set(.08,0,0);}
     if(!ufoFlight)return;
     const t=(elapsed-ufoFlight.start)/ufoFlight.duration;
@@ -146,7 +176,7 @@ export async function createWorld(container,options={}){
     ufo.visible=true;
     sampleUfoFlight(ufoFlight,t,flightPosition);
     sampleUfoFlight(ufoFlight,Math.min(1,t+.0001),flightTangent).sub(flightPosition).normalize();
-    ufo.position.copy(moon.position).add(flightPosition);
+    ufo.position.copy(ufoFlight.anchor??moon.position).add(flightPosition);
     // Banking follows the velocity without abrupt orientation changes.
     const bank=THREE.MathUtils.clamp(flightTangent.y*.35,-.28,.28);
     ufo.rotation.z=THREE.MathUtils.damp(ufo.rotation.z,bank,4,Math.min(.05,elapsed-(ufoFlight.last??elapsed)));
@@ -157,6 +187,7 @@ export async function createWorld(container,options={}){
   }
   function buildUfoCurve(config){
     if(config?.nodes?.length>=3){
+      config=structuredClone(config);
       const center=moon.position.clone().project(camera);
       ensureOffscreenEndpoints(config,[(center.x+1)/2,(1-center.y)/2]);
       const convert=([x,y])=>new THREE.Vector3(center.x+x*2,center.y-y*2,center.z).unproject(camera).sub(moon.position);
@@ -189,7 +220,7 @@ export async function createWorld(container,options={}){
     }
     return {path,moon:[(center.x+1)/2,(1-center.y)/2]};
   }
-  function previewUfoRoute(enabled){routePreview=enabled;ufoFlight=undefined;nextUfoAt=elapsed;requestTick();}
+  function previewUfoRoute(enabled){routePreview=enabled;updateMoonPosition();ufoFlight=undefined;nextUfoAt=elapsed;requestTick();}
   // The shoreline, sloping beach and displaced water share one world-space frame.
   const coastUniforms={coastOrigin:{value:new THREE.Vector2()},coastTangent:{value:new THREE.Vector2(1,0)},coastNormal:{value:new THREE.Vector2(0,1)},coastTime:{value:0},coastEnabled:{value:0},coastNight:{value:0}};
   const coastGLSL=`
@@ -689,7 +720,7 @@ export async function createWorld(container,options={}){
     }
   }
   let last=performance.now(),lastReport=last,frames=0,raf=0;
-  function render(){moonPhase.update();moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
+  function render(){updateMoonPosition();moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000;options.onStats?.({fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval});lastReport=now;frames=0;}}
   function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
   function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition)&&!document.hidden)raf=requestAnimationFrame(tick);}
@@ -705,7 +736,7 @@ export async function createWorld(container,options={}){
   nightSky.visible=cloudGroup.visible=true;
   try{await renderer.compileAsync(scene,camera);}finally{nightSky.visible=skyVisible;cloudGroup.visible=cloudsVisible;}
   last=performance.now();report(true);requestTick();
-  return {icons,setPaused,setBiome,setQuality,setNight,getUfoRoute,setUfoRoute,setUfoRoutes,getUfoGuide,previewUfoRoute};
+  return {icons,setPaused,setBiome,setQuality,setNight,setMoonTracking,getUfoRoute,setUfoRoute,setUfoRoutes,getUfoGuide,previewUfoRoute};
 
   function makeIcons(sharedRenderer){
     const result={};const iconScene=new THREE.Scene();

@@ -4,9 +4,16 @@ export function validLocation(value){
   if(!value||typeof value.name!=='string'||value.name.length>40||!Number.isFinite(value.lat)||Math.abs(value.lat)>90||!Number.isFinite(value.lng)||Math.abs(value.lng)>180||typeof value.timeZone!=='string')return false;
   try{new Intl.DateTimeFormat('en',{timeZone:value.timeZone}).format();return true;}catch{return false;}
 }
-function dayKey(date,timeZone){
+export function dayKey(date,timeZone){
   const parts=new Intl.DateTimeFormat('en',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
   return ['year','month','day'].map(type=>parts.find(p=>p.type===type).value).join('-');
+}
+export function readCompanyLocation(){try{const value=JSON.parse(localStorage.getItem(storageKey));return validLocation(value)?value:null;}catch{return null;}}
+export function getLocationDayBounds(location,now=new Date()){
+  const key=dayKey(now,location.timeZone),utc=Date.parse(`${key}T00:00:00Z`);
+  function boundary(target,center){let lo=center-18*3600000,hi=center+18*3600000;while(hi-lo>1){const mid=Math.floor((lo+hi)/2);if(dayKey(new Date(mid),location.timeZone)<target)lo=mid;else hi=mid;}return hi;}
+  const next=new Date(utc+86400000).toISOString().slice(0,10);
+  return {start:boundary(key,utc),end:boundary(next,utc+86400000),date:key};
 }
 export function getLocationMoonTimes(location,now=new Date()){
   const key=dayKey(now,location.timeZone),utcDay=Date.parse(`${key}T00:00:00Z`),rise=[],set=[];
@@ -48,11 +55,11 @@ export function initCompanyLocation(){
     const next={name:$('location-name').value.trim()||'自訂地點',lat:Number($('location-lat').value),lng:Number($('location-lng').value),timeZone:$('location-timezone').value.trim()};
     if(!$('location-lat').value.trim()||!$('location-lng').value.trim()||!validLocation(next)){$('location-message').textContent='請確認經緯度範圍及時區名稱，例如 Asia/Taipei。';return;}
     try{localStorage.setItem(storageKey,JSON.stringify(next));}catch{$('location-message').textContent='瀏覽器無法儲存設定，請確認儲存空間或隱私設定。';return;}
-    saved=next;refresh(true);dialog.close();$('announcer').textContent=`已將公司所在地設為${saved.name}。`;
+    saved=next;refresh(true);window.dispatchEvent(new CustomEvent('company-location-change',{detail:saved}));dialog.close();$('announcer').textContent=`已將公司所在地設為${saved.name}。`;
   });
   $('location-clear').addEventListener('click',()=>{
     try{localStorage.removeItem(storageKey);}catch{$('location-message').textContent='無法清除設定，請稍後再試。';return;}
-    saved=undefined;lastDay='';refresh();dialog.close();$('announcer').textContent='已清除公司所在地。';
+    saved=undefined;lastDay='';refresh();window.dispatchEvent(new CustomEvent('company-location-change',{detail:null}));dialog.close();$('announcer').textContent='已清除公司所在地。';
   });
   refresh(true);setInterval(()=>{if(!document.hidden)refresh();},60000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
