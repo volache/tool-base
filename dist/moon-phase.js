@@ -18,8 +18,8 @@ export function createMoonPhase(THREE){
     #include <colorspace_fragment>
     }`});
   let lastMinute=-1;
-  function update(){
-    const now=Date.now(),minute=Math.floor(now/60000);if(minute===lastMinute)return;lastMinute=minute;
+  function update(now=Date.now()){
+    const minute=Math.floor(now/60000);if(minute===lastMinute)return;lastMinute=minute;
     const data=getMoonPhase(new Date(now));localLight.fromArray(data.light);
     const name=document.getElementById('moon-phase-name'),fraction=document.getElementById('moon-phase-fraction');
     if(name)name.textContent=data.name;

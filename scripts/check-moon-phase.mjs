@@ -16,14 +16,14 @@ for(let day=1;day<=29;day+=4){
 }
 const THREE=await import('../dist/vendor/three.module.min.js');
 globalThis.document={getElementById:()=>null};
-const display=createMoonPhase(THREE);display.update();
+const testTime=Date.UTC(2026,9,17,12),display=createMoonPhase(THREE);display.update(testTime);
 const camera=new THREE.PerspectiveCamera(37,2,.1,190);camera.position.set(0,9,28);camera.lookAt(0,5,-12);camera.updateMatrixWorld();
 const moon=new THREE.Object3D(),viewer=new THREE.Vector3(),right=new THREE.Vector3();
 for(const x of [-45,0,45]){
   moon.position.set(x,18,-48);moon.updateMatrixWorld();display.updateView(moon,camera);
   viewer.copy(moon.position).applyMatrix4(camera.matrixWorldInverse).negate().normalize();
   right.set(1,0,0).addScaledVector(viewer,-viewer.x).normalize();
-  const expected=getMoonPhase(),light=display.material.uniforms.lightDirection.value;
+  const expected=getMoonPhase(new Date(testTime)),light=display.material.uniforms.lightDirection.value;
   assert(Math.abs(light.dot(viewer)-expected.light[2])<1e-10,'Off-axis moon changed its illuminated fraction');
   assert(Math.abs(light.dot(right)-expected.light[0])<1e-10,'Off-axis moon changed waxing/waning direction');
 }
