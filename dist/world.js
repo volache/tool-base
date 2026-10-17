@@ -134,7 +134,7 @@ export async function createWorld(container,options={}){
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
     nightSky.visible=true;
-    const second=Math.floor(time/1000);if(!moonTransition&&second!==moonStatusSecond){moonStatusSecond=second;moonTracking.onStatus?.({...state,inView:moonInView});}
+    const second=Math.floor(time/1000);if(!moonTransition&&second!==moonStatusSecond){moonStatusSecond=second;moonTracking.onStatus?.({...state,inView:moonInView,screen:{x:moonScreen.x,y:moonScreen.y}});}
   }
   function setMoonTracking(config){
     const modeChanged=moonTracking.enabled!==config.enabled||(moonTracking.previewTime==null)!==(config.previewTime==null)||moonTracking.location!==config.location;

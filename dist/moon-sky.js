@@ -21,7 +21,8 @@ export function initMoonSky(world,{beginPreview,endPreview}){
     if(!location)return;
     const degrees=state.altitude*180/Math.PI,az=(state.azimuth*180/Math.PI+540)%360;
     const directions=['北','東北','東','東南','南','西南','西','西北'],direction=directions[Math.round(az/45)%8];
-    const label=degrees<-.86?'月亮在地平線下':!state.inView?'月亮位於鏡頭外':`${direction}方 · 高度 ${Math.max(0,degrees).toFixed(1)}°`;
+    const edge=state.screen?.y>1?'畫面上方':state.screen?.y< -1?'畫面下方':state.screen?.x< -1?'畫面左側':state.screen?.x>1?'畫面右側':'鏡頭外';
+    const label=`${direction}方 · 高度 ${degrees.toFixed(1)}°${degrees<-.86?' · 地平線下':!state.inView?` · 位於${edge}`:''}`;
     const node=$('moon-sky-status');if(node.textContent!==label)node.textContent=label;
     node.dataset.altitude=String(degrees);node.dataset.inView=String(state.inView);
   }
