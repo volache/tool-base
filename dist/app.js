@@ -1,4 +1,5 @@
 import {tools} from './tools.js';
+import {initCompanyLocation} from './company-location.js';
 import './vendor/lucide.min.js';
 
 const $ = (s) => document.querySelector(s);
@@ -28,6 +29,7 @@ function updateClock(){
   $('#current-date').textContent=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${clockWeekday.format(now)}`;
 }
 updateClock();setInterval(updateClock,1000);
+initCompanyLocation();
 let uiTransition;
 function transitionTools(){
   if(reduced.matches||!document.startViewTransition){renderTools();return;}
@@ -111,6 +113,7 @@ input.addEventListener('input',transitionTools);
 $('#clear-search').addEventListener('click',()=>{input.value='';transitionTools();input.focus();});
 $('#google-search-empty').addEventListener('click',searchGoogle);
 document.addEventListener('keydown',e=>{
+  if($('#location-dialog').open)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(dialog.open){closeDialog({focusTarget:input});return;}input.focus();input.select();}
   if(e.key==='Escape'&&!dialog.open){if(!$('#settings').hidden)toggleSettings(false);else if(currentQuery){input.value='';transitionTools();}}
 });
@@ -150,6 +153,7 @@ function toggleSettings(force){const open=force??$('#settings').hidden;$('#setti
 $('#settings-toggle').addEventListener('click',()=>toggleSettings());
 $('#settings-close').addEventListener('click',()=>toggleSettings(false));
 document.addEventListener('pointerdown',e=>{
+  if($('#location-dialog').open)return;
   if(!$('.quality-picker').contains(e.target))closeQuality();
   if(!$('#settings').hidden&&!$('#settings').contains(e.target)&&!$('#settings-toggle').contains(e.target)){$('#settings').hidden=true;$('#settings-toggle').setAttribute('aria-expanded','false');}
 });

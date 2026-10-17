@@ -54,6 +54,8 @@
     </div>
     <p>選擇適合裝置的畫質。</p>
     <div id="moon-phase-status" class="moon-phase-status" aria-label="目前月相"><i data-lucide="moon" aria-hidden="true"></i><span><strong id="moon-phase-name">月相</strong><small id="moon-phase-fraction">計算中</small></span></div>
+    <button type="button" id="location-edit" class="location-edit" aria-haspopup="dialog"><i data-lucide="map-pin" aria-hidden="true"></i><span>公司所在地<small id="location-label">未設定</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+    <div id="location-moon-times" class="location-moon-times" hidden><small id="location-moon-date"></small><dl><div><dt>月升</dt><dd id="location-moon-rise"></dd></div><div><dt>月落</dt><dd id="location-moon-set"></dd></div></dl></div>
     <label class="check-row"><input type="checkbox" id="auto-biome"> 自動輪換場景</label>
     <div id="rotation-controls" class="rotation-controls" hidden>
       <label for="rotation-speed">輪換間隔 <output id="rotation-label" for="rotation-speed">每 30 秒</output></label>
@@ -103,6 +105,17 @@
     <button class="primary" id="dialog-done" autofocus>知道了</button>
   </dialog>
   <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
+  <dialog id="location-dialog" aria-labelledby="location-title">
+    <button id="location-close" type="button" class="dialog-close icon-control control" aria-label="關閉所在地設定"><i data-lucide="x" aria-hidden="true"></i></button>
+    <span class="dialog-kicker">天空設定</span><h2 id="location-title">公司所在地</h2><p>設定月升、月落的計算地點。儲存在此瀏覽器，無需開啟定位。</p>
+    <form id="location-form">
+      <div class="location-presets" aria-label="快速填入城市中心座標"><button type="button" data-location-preset="taipei">台北</button><button type="button" data-location-preset="hsinchu">新竹</button><button type="button" data-location-preset="taichung">台中</button><button type="button" data-location-preset="kaohsiung">高雄</button></div>
+      <label for="location-name">地點名稱<input id="location-name" type="text" maxlength="40" placeholder="例如：台北辦公室" autocomplete="off"></label>
+      <div class="location-coordinates"><label for="location-lat">緯度<input id="location-lat" type="number" min="-90" max="90" step="any" required placeholder="25.033"></label><label for="location-lng">經度<input id="location-lng" type="number" min="-180" max="180" step="any" required placeholder="121.5654"></label></div>
+      <label for="location-timezone">所在地時區<input id="location-timezone" type="text" required maxlength="64" value="Asia/Taipei" autocomplete="off" spellcheck="false"></label><small class="location-hint">時區範例：Asia/Taipei、Asia/Tokyo</small>
+      <p id="location-message" role="status" aria-live="polite"></p><div class="location-actions"><button type="button" id="location-clear">清除設定</button><button class="primary" type="submit">儲存所在地</button></div>
+    </form>
+  </dialog>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
