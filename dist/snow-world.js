@@ -32,8 +32,8 @@ export function createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunk
   // A quiet ribbon over the distant horizon gives the snowy night its own identity.
   const auroraUniforms={time:{value:0},strength:{value:0}};
   const auroraMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,uniforms:auroraUniforms,
-    vertexShader:`varying vec2 vUv;uniform float time;void main(){vUv=uv;vec3 p=position;p.y+=sin(p.x*.06+time*.08)*2.8+sin(p.x*.13-time*.04)*.8;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
-    fragmentShader:`varying vec2 vUv;uniform float strength;uniform float time;void main(){float edge=pow(sin(vUv.x*3.14159),.55);float curtain=pow(sin(vUv.y*3.14159),1.35);float folds=.58+.42*sin(vUv.x*72.+sin(vUv.x*11.-time*.09)*3.+time*.16);float veil=.72+.28*sin(vUv.x*19.-time*.07);vec3 c=mix(vec3(.15,.9,.61),vec3(.42,.5,1.),smoothstep(.12,.9,vUv.y));gl_FragColor=vec4(c,edge*curtain*folds*veil*strength*.42);}`});
+    vertexShader:`varying vec2 vUv;uniform float time;void main(){vUv=uv;vec3 p=position;p.y+=sin(p.x*.06+time*.18)*2.8+sin(p.x*.13-time*.1)*.8;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+    fragmentShader:`varying vec2 vUv;uniform float strength;uniform float time;void main(){float edge=pow(sin(vUv.x*3.14159),.55);float curtain=pow(sin(vUv.y*3.14159),1.35);float folds=.58+.42*sin(vUv.x*72.+sin(vUv.x*11.-time*.18)*3.+time*.32);float veil=.72+.28*sin(vUv.x*19.-time*.14);vec3 c=mix(vec3(.15,.9,.61),vec3(.42,.5,1.),smoothstep(.12,.9,vUv.y));gl_FragColor=vec4(c,edge*curtain*folds*veil*strength*.42);}`});
   const aurora=new THREE.Mesh(new THREE.PlaneGeometry(124,17,110,12),auroraMaterial);aurora.position.set(7,22,-76);aurora.frustumCulled=false;scene.add(aurora);
   const daySnow=new THREE.Color('#f0f7fa'),nightSnow=new THREE.Color('#9cb6cb'),dayPine=new THREE.Color('#50776f'),nightPine=new THREE.Color('#324f62');
   function setQuality(quality){flakes.count=quality==='low'?90:quality==='high'?260:180;}

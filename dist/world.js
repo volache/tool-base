@@ -115,12 +115,14 @@ export async function createWorld(container,options={}){
     moonPhase.material.depthTest=!preview;
     if(preview){
       const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
-      const skyHeight=Math.pow(Math.max(0,Math.sin(state.altitude)),.62)*1.12;
+      // Keep the moon moving below the horizon so its limb is revealed progressively.
+      const sinAltitude=Math.sin(state.altitude),skyHeight=Math.sign(sinAltitude)*Math.pow(Math.abs(sinAltitude),.62)*1.12;
       moon.position.set(state.azimuth/Math.PI*1.5,.025+skyHeight,depth).unproject(camera);
       moonPhase.setHorizon(2,.02);
     }else{moon.position.fromArray(state.direction).multiplyScalar(90).add(camera.position);moonPhase.setHorizon(1);}
-    moonPhase.setOrientation(state.tilt);moonPhase.setOpacity(.65+.35*nightMix);
-    moon.visible=state.altitude>-.03;
+    const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
+    moonPhase.setOrientation(state.tilt);moonPhase.setOpacity((.65+.35*nightMix)*horizonFade);
+    moon.visible=state.altitude>-.09;
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
     nightSky.visible=true;
