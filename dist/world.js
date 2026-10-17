@@ -109,30 +109,30 @@ export async function createWorld(container,options={}){
   const fixedMoonPosition=moon.position.clone(),moonScreen=new THREE.Vector3(),moonTarget=new THREE.Vector3();
   const sunWorld=createSunWorld(THREE,{scene,camera});
   function setSunTracking(config){sunWorld.setTracking(config);if(paused)render();requestTick();}
-  let moonTracking={enabled:false},moonInView=true,moonStatusSecond=-1,moonOpacity=0,moonTransition;
-  function applyMoonVisual(target,opacity,visible){
+  let moonTracking={enabled:false},moonInView=true,moonStatusSecond=-1,moonOpacity=0,moonTransition,moonOrientation=null,moonHorizon=0;
+  function applyMoonVisual(target,opacity,visible,orientation=null,horizon=0){
+    let shownOrientation=orientation,shownHorizon=horizon;
     if(moonTransition){
-      const progress=THREE.MathUtils.clamp((performance.now()-moonTransition.started)/420,0,1),ease=THREE.MathUtils.smootherstep(progress,0,1);
-      moon.position.lerpVectors(moonTransition.position,target,ease);
-      moonOpacity=THREE.MathUtils.lerp(moonTransition.opacity,opacity,ease);
+      const progress=THREE.MathUtils.clamp((performance.now()-moonTransition.started)/420,0,1);
+      if(progress<.5){moon.position.copy(moonTransition.position);moonOpacity=moonTransition.opacity*(1-THREE.MathUtils.smootherstep(progress*2,0,1));shownOrientation=moonTransition.orientation;shownHorizon=moonTransition.horizon;}
+      else{moon.position.copy(target);moonOpacity=opacity*THREE.MathUtils.smootherstep((progress-.5)*2,0,1);}
       moon.visible=progress<1||visible;
       if(progress>=1){moonTransition=undefined;moonStatusSecond=-1;}
     }else{moon.position.copy(target);moonOpacity=opacity;moon.visible=visible;}
-    moonPhase.setOpacity(moonOpacity);
+    moonOrientation=shownOrientation;moonHorizon=shownHorizon;moonPhase.material.depthTest=shownHorizon===0;moonPhase.setOrientation(shownOrientation);moonPhase.setHorizon(shownHorizon,.02);moonPhase.setOpacity(moonOpacity);
   }
   function updateMoonPosition(){
     const tracking=moonTracking.location&&(routePreview?routePreviewDynamic:moonTracking.enabled);
     const time=tracking?(routePreview?routePreviewTime:(moonTracking.previewTime??Date.now())):Date.now();
     moonPhase.update(time);moonPhase.setDaylight(1-nightMix);
-    if(!tracking){moonInView=true;moonPhase.material.depthTest=true;moonPhase.setOrientation(null);moonPhase.setHorizon(0);applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
+    if(!tracking){moonInView=true;moonPhase.material.depthTest=true;applyMoonVisual(fixedMoonPosition,nightMix,true);return;}
     const state=getMoonSkyState(time,moonTracking.location);
     // Live time and preview time use the same panorama projection and horizon.
     moonPhase.material.depthTest=false;
     const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
     moonTarget.set(state.azimuth/Math.PI*1.5,getMoonPanoramaHeight(state,time,moonTracking.location),depth).unproject(camera);
-    moonPhase.setHorizon(2,.02);
     const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
-    moonPhase.setOrientation(state.tilt);applyMoonVisual(moonTarget,(.52+.48*nightMix)*horizonFade,state.altitude>-.09);
+    applyMoonVisual(moonTarget,(.52+.48*nightMix)*horizonFade,state.altitude>-.09,state.tilt,2);
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
     nightSky.visible=true;
@@ -140,7 +140,7 @@ export async function createWorld(container,options={}){
   }
   function setMoonTracking(config){
     const modeChanged=moonTracking.enabled!==config.enabled||(moonTracking.previewTime==null)!==(config.previewTime==null)||moonTracking.location!==config.location;
-    if(modeChanged)moonTransition={started:performance.now(),position:moon.position.clone(),opacity:moonOpacity};
+    if(modeChanged)moonTransition={started:performance.now(),position:moon.position.clone(),opacity:moonOpacity,orientation:moonOrientation,horizon:moonHorizon};
     moonTracking=config;if(modeChanged){ufoFlight=undefined;ufo.visible=false;moonStatusSecond=-1;}
     if(paused)render();requestTick();
   }
@@ -427,7 +427,8 @@ export async function createWorld(container,options={}){
   }
   const snowWorld=createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunkMaterial:materials.trunk});
   const forestWorld=createForestWorld(THREE,{scene,chunks,cube,batch,random});
-  const dayLife=createDayLife(THREE,{scene,belt,cube,random});
+  const groundSpeed=2.65;
+  const dayLife=createDayLife(THREE,{scene,belt,cube,random,groundSpeed});
   // Shadow casters must use the same world-space coastline as visible terrain.
   // Otherwise culled shoreline props leave floating silhouettes over the water.
   const coastDepth=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking});
@@ -692,7 +693,7 @@ export async function createWorld(container,options={}){
     elapsed+=delta;
     coastUniforms.coastTime.value=elapsed;
     if(biome==='coast')animateWater();
-    const speed=2.65;
+    const speed=groundSpeed;
     for(const {group} of chunks){group.position.z+=delta*speed;if(group.position.z>60)group.position.z-=chunkCount*chunkLength;}
     const phase=elapsed*8.8;
     torso.position.y=Math.abs(Math.sin(phase))*.07;

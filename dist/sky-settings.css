@@ -3,7 +3,8 @@
 :root[data-theme="night"]{--panel-muted:#c0cedc;--sun-ink:#f5cd82;--sun-tint:#493f30;--moon-ink:#bbd8ff;--moon-tint:#30465e}
 :is(.settings,.route-panel,.moon-preview,#location-dialog){font-family:'Segoe UI','Microsoft JhengHei','PingFang TC',sans-serif;font-size:14px;font-weight:400;line-height:1.6;background:var(--color-paper);text-shadow:none}
 :is(.settings,.route-panel,.moon-preview) h2{font-size:18px;font-weight:700;line-height:1.4}
-.settings,.route-panel{overflow:clip}
+.settings,.route-panel{overflow:clip;scrollbar-gutter:auto}
+.settings{padding:18px 20px}
 .settings-scroll,.route-scroll{position:relative}
 .settings #render-status{top:0;left:0}
 :is(.settings,.route-panel,.moon-preview) :is(p,small,label,summary,button,input,output,dt,dd){font-family:inherit}

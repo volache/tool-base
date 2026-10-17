@@ -1,8 +1,8 @@
 import {createTumbleweeds} from './tumbleweed.js';
 // Small construction-toy silhouettes; each species is one or two instanced draws.
-export function createDayLife(THREE,{scene,belt,cube,random}){
+export function createDayLife(THREE,{scene,belt,cube,random,groundSpeed}){
   const dummy=new THREE.Object3D(),white=new THREE.MeshStandardMaterial({color:'#fff5df',roughness:.8});
-  const wings=new THREE.InstancedMesh(cube,white,16),birds=new THREE.InstancedMesh(cube,white,12),tumbleweeds=createTumbleweeds(THREE,{belt,cube}),tumble=tumbleweeds.mesh;
+  const wings=new THREE.InstancedMesh(cube,white,16),birds=new THREE.InstancedMesh(cube,white,12),tumbleweeds=createTumbleweeds(THREE,{belt,cube,groundSpeed}),tumble=tumbleweeds.mesh;
   scene.add(wings,birds);
   const lightMaterial=new THREE.MeshBasicMaterial({color:'#fff0ab',transparent:true,opacity:.17,depthWrite:false});
   const patches=new THREE.InstancedMesh(cube,lightMaterial,22);belt.add(patches);
