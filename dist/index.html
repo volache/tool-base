@@ -9,6 +9,7 @@
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./route-editor.css">
+  <link rel="stylesheet" href="./sky-settings.css">
 </head>
 <body>
   <div id="world" aria-hidden="true"></div>
@@ -55,11 +56,30 @@
       </ul>
     </div>
     <p>選擇適合裝置的畫質。</p>
-    <section class="settings-section sky-settings"><div class="section-label">天空</div><div id="moon-phase-status" class="moon-phase-status" aria-label="目前月相"><i data-lucide="moon" aria-hidden="true"></i><span><strong id="moon-phase-name">月相</strong><small id="moon-phase-fraction">計算中</small></span></div>
-    <button type="button" id="location-edit" class="location-edit" aria-haspopup="dialog"><i data-lucide="map-pin" aria-hidden="true"></i><span>公司所在地<small id="location-label">未設定</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
-    <div id="location-moon-times" class="location-moon-times" hidden><small id="location-moon-date"></small><dl><div><dt>月升</dt><dd id="location-moon-rise"></dd></div><div><dt>月落</dt><dd id="location-moon-set"></dd></div></dl></div>
-    <label class="switch-row"><span><strong>依所在地顯示月亮升落</strong><small id="moon-tracking-hint">請先設定公司所在地。</small></span><input type="checkbox" id="moon-tracking" checked disabled></label><p id="moon-sky-status">固定位置 · 當日月相</p><button id="moon-preview-start" class="moon-preview-start" type="button" disabled><i data-lucide="orbit" aria-hidden="true"></i>預覽今日月升月落</button></section>
-    <section class="settings-section sun-settings"><div class="section-label">太陽</div><div id="sun-event-times" class="location-moon-times" hidden><dl><div><dt>日出</dt><dd id="sun-rise-time"></dd></div><div><dt>日落</dt><dd id="sun-set-time"></dd></div></dl></div><label class="switch-row"><span><strong>依所在地顯示太陽升落</strong><small id="sun-tracking-hint">請先設定公司所在地。</small></span><input type="checkbox" id="sun-tracking" checked disabled></label><p id="sun-sky-status">固定位置 · 日間太陽</p><button id="sun-preview-start" class="moon-preview-start" type="button" disabled><i data-lucide="sun" aria-hidden="true"></i>預覽今日日出日落</button></section>
+    <section class="settings-section sky-settings" aria-labelledby="sky-settings-title">
+      <h3 id="sky-settings-title" class="section-label">天空</h3>
+      <button type="button" id="location-edit" class="location-edit" aria-haspopup="dialog"><i data-lucide="map-pin" aria-hidden="true"></i><span>公司所在地<small id="location-label">未設定</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+      <p class="sky-location-note">日出日落、月升月落共用此地點。</p>
+      <div class="sky-tabs" role="tablist" aria-label="天空設定對象">
+        <button id="sky-tab-sun" type="button" role="tab" aria-selected="true" aria-controls="sky-panel-sun" tabindex="0"><i data-lucide="sun" aria-hidden="true"></i>太陽</button>
+        <button id="sky-tab-moon" type="button" role="tab" aria-selected="false" aria-controls="sky-panel-moon" tabindex="-1"><i data-lucide="moon" aria-hidden="true"></i>月亮</button>
+      </div>
+      <div id="sky-panel-sun" class="sky-body-panel sun-settings" role="tabpanel" aria-labelledby="sky-tab-sun">
+        <div class="sky-body-heading"><span class="sky-body-icon"><i data-lucide="sun" aria-hidden="true"></i></span><span><h4>太陽設定</h4><small>白天的天空主角</small></span><span id="sun-mode-label" class="sky-mode-label">動態</span></div>
+        <label class="switch-row"><span><strong>動態太陽</strong><small id="sun-tracking-hint">請先設定公司所在地。</small></span><input type="checkbox" id="sun-tracking" checked disabled></label>
+        <div id="sun-event-times" class="location-moon-times" hidden><dl><div><dt>日出</dt><dd id="sun-rise-time"></dd></div><div><dt>日落</dt><dd id="sun-set-time"></dd></div></dl></div>
+        <p id="sun-sky-status">固定位置 · 日間太陽</p>
+        <button id="sun-preview-start" class="moon-preview-start" type="button" disabled><i data-lucide="sunrise" aria-hidden="true"></i>預覽日出日落</button>
+      </div>
+      <div id="sky-panel-moon" class="sky-body-panel moon-settings" role="tabpanel" aria-labelledby="sky-tab-moon" hidden>
+        <div class="sky-body-heading"><span class="sky-body-icon"><i data-lucide="moon" aria-hidden="true"></i></span><span><h4>月亮設定</h4><small>依日期呈現當天月相</small></span><span id="moon-mode-label" class="sky-mode-label">動態</span></div>
+        <label class="switch-row"><span><strong>動態月亮</strong><small id="moon-tracking-hint">請先設定公司所在地。</small></span><input type="checkbox" id="moon-tracking" checked disabled></label>
+        <div id="moon-phase-status" class="moon-phase-status" aria-label="目前月相"><i data-lucide="moon" aria-hidden="true"></i><span><strong id="moon-phase-name">月相</strong><small id="moon-phase-fraction">計算中</small></span></div>
+        <div id="location-moon-times" class="location-moon-times" hidden><small id="location-moon-date"></small><dl><div><dt>月升</dt><dd id="location-moon-rise"></dd></div><div><dt>月落</dt><dd id="location-moon-set"></dd></div></dl></div>
+        <p id="moon-sky-status">固定位置 · 當日月相</p>
+        <button id="moon-preview-start" class="moon-preview-start" type="button" disabled><i data-lucide="orbit" aria-hidden="true"></i>預覽月升月落</button>
+      </div>
+    </section>
     <section class="settings-section scene-settings"><div class="section-label">場景</div><label class="switch-row"><span><strong>自動輪換場景</strong><small>依指定間隔切換環境</small></span><input type="checkbox" id="auto-biome"></label>
     <div id="rotation-controls" class="rotation-controls" hidden>
       <label for="rotation-speed">輪換間隔 <output id="rotation-label" for="rotation-speed">每 30 秒</output></label>

@@ -748,7 +748,7 @@ export async function createWorld(container,options={}){
     }
   }
   let last=performance.now(),lastReport=last,frames=0,raf=0;
-  function render(){updateMoonPosition();sunWorld.update(1-nightMix);moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
+  function render(){updateMoonPosition();sunWorld.update(1-nightMix,elapsed);moonPhase.updateView(moon,camera);volumeFog.render(scene,sceneTransition?{front:groundMist.mistFront.value,back:groundMist.mistBack.value,anchor:groundMist.mistAnchor.value,tint:mistUniforms.tint.value,age:sceneTransition.age,seal:groundMist.mistSeal.value}:null);}
   function report(force=false){const now=performance.now();if(now-lastReport>1200||force){const interval=(now-lastReport)/1000,stats={fps:paused?0:Math.round(frames/Math.max(interval,.01)),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,interval};container.dataset.fps=String(stats.fps);container.dataset.drawCalls=String(stats.calls);container.dataset.triangles=String(stats.triangles);options.onStats?.(stats);lastReport=now;frames=0;}}
   function tick(now){raf=0;if(document.hidden||(paused&&!sceneTransition&&!themeTransition&&!moonTransition&&!sunWorld.isTransitioning()))return;const delta=Math.min((now-last)/1000,.1);last=now;if(!paused)animate(delta);animateTheme(delta);animateSceneTransition(delta);render();frames++;report();requestTick();}
   function requestTick(){if(!raf&&(!paused||sceneTransition||themeTransition||moonTransition||sunWorld.isTransitioning())&&!document.hidden)raf=requestAnimationFrame(tick);}

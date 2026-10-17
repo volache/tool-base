@@ -24,7 +24,8 @@ export function initMoonSky(world,{beginPreview,endPreview},{kind='moon',readSta
   }
   function apply(){
     $('moon-tracking').checked=enabled;$('moon-tracking').disabled=!location;$('moon-preview-start').disabled=!location;
-    $('moon-tracking-hint').textContent=location?'依當地時間更新；天空採全景縮放，與預覽位置一致。':'請先設定公司所在地。';
+    $('moon-tracking-hint').textContent=location?(enabled?'隨所在地時間升起、落下':'固定在天空中，不隨時間移動'):'請先設定公司所在地。';
+    const mode=$('moon-mode-label');if(mode){mode.textContent=!location?'未設定':enabled?'動態':'固定';mode.dataset.enabled=String(!!location&&enabled);}
     if(!location||!enabled&&!preview)$('moon-sky-status').textContent=kind==='moon'?'固定位置 · 當日月相':'固定位置 · 日間太陽';
     world[setTracking]({location,enabled:!!location&&(enabled||preview),previewTime:preview?previewTime:null,onStatus:status});
   }

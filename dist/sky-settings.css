@@ -1,0 +1,60 @@
+/* Solid, readable panels share one type scale in both themes. */
+:root{--panel-muted:#465b68;--sun-ink:#88531c;--sun-tint:#f7edd6;--moon-ink:#355a88;--moon-tint:#e6eef9}
+:root[data-theme="night"]{--panel-muted:#c0cedc;--sun-ink:#f5cd82;--sun-tint:#493f30;--moon-ink:#bbd8ff;--moon-tint:#30465e}
+:is(.settings,.route-panel,.moon-preview,#location-dialog){font-family:'Segoe UI','Microsoft JhengHei','PingFang TC',sans-serif;font-size:14px;font-weight:400;line-height:1.6;background:var(--color-paper);text-shadow:none}
+:is(.settings,.route-panel,.moon-preview) h2{font-size:18px;font-weight:700;line-height:1.4}
+.settings,.route-panel{overflow:clip}
+.settings-scroll,.route-scroll{position:relative}
+.settings #render-status{top:0;left:0}
+:is(.settings,.route-panel,.moon-preview) :is(p,small,label,summary,button,input,output,dt,dd){font-family:inherit}
+:is(.settings,.route-panel,.moon-preview) :is(p,small){font-size:12px;line-height:1.65;color:var(--panel-muted)}
+:is(.settings,.route-panel,.moon-preview) :is(label,button,input,output,dt,dd){font-size:13px}
+:is(.settings,.route-panel,.moon-preview) :is(.panel-kicker,.section-label){font-size:11px;font-weight:600;color:var(--panel-muted);letter-spacing:.06em}
+.settings .switch-row{gap:10px;padding:12px;min-height:70px}
+.settings .switch-row strong{font-size:14px;font-weight:600;line-height:1.5}
+.settings .switch-row small{font-size:12px;font-weight:400;color:var(--panel-muted);line-height:1.6}
+.settings .settings-head{margin-bottom:18px}
+.settings :is(#quality strong,#quality-label strong){font-size:14px;font-weight:600}
+.settings :is(#quality small,#quality-label small){font-size:12px;color:var(--panel-muted)}
+.settings .sky-settings{margin-top:20px}
+.settings .sky-settings>h3{margin:0 0 12px}
+.settings .sky-settings .location-edit{margin:0;padding:11px 12px;font-size:14px}
+.settings .location-edit small{font-size:13px;color:var(--panel-muted)}
+.settings .sky-location-note{margin:7px 2px 16px;font-size:12px}
+.sky-tabs{display:flex;gap:4px;padding:4px;background:var(--color-control);border:1px solid var(--color-line);border-radius:13px;margin-bottom:16px}
+.sky-tabs button{display:flex;align-items:center;justify-content:center;gap:7px;flex:1;min-height:42px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--panel-muted);font-size:14px;font-weight:600}
+.sky-tabs button[aria-selected="true"]{background:var(--color-paper);border-color:var(--color-line);box-shadow:0 2px 5px var(--color-shade);color:var(--color-ink)}
+.sky-tabs .lucide{width:18px;height:18px}
+#sky-tab-sun[aria-selected="true"]{color:var(--sun-ink)}
+#sky-tab-moon[aria-selected="true"]{color:var(--moon-ink)}
+.sky-body-panel{--body-ink:var(--sun-ink);--body-tint:var(--sun-tint)}
+.sky-body-panel.moon-settings{--body-ink:var(--moon-ink);--body-tint:var(--moon-tint)}
+.sky-body-heading{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+.sky-body-icon{display:flex;align-items:center;justify-content:center;width:38px;height:38px;flex-shrink:0;border-radius:12px;background:var(--body-tint);color:var(--body-ink)}
+.sky-body-icon .lucide{width:21px;height:21px}
+.sky-body-heading h4{margin:0;font-size:16px;font-weight:700;line-height:1.4}
+.sky-body-heading small{display:block;margin-top:3px;font-size:12px}
+.sky-mode-label{margin-left:auto;flex-shrink:0;border-radius:6px;background:var(--color-control);border:1px solid var(--color-line);padding:3px 7px;font-size:12px;font-weight:600;color:var(--panel-muted)}
+.sky-mode-label[data-enabled="true"]{background:var(--body-tint);color:var(--body-ink)}
+.settings .sky-body-panel .switch-row{margin-top:0;background:var(--color-control)}
+.settings .sky-body-panel .moon-phase-status{margin:12px 0 0;background:transparent;border:0;padding:0 2px}
+.settings .sky-body-panel .moon-phase-status strong{font-size:13px}
+.settings .sky-body-panel .moon-phase-status small{font-size:12px}
+.settings .sky-body-panel .location-moon-times dl{gap:8px;margin:10px 0 0}
+.settings .sky-body-panel .location-moon-times dl>div{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 12px;border:1px solid var(--color-line);border-radius:10px;background:var(--color-control)}
+.settings .sky-body-panel .location-moon-times dt{font-size:12px;color:var(--panel-muted)}
+.settings .sky-body-panel .location-moon-times dd{font-size:17px;font-weight:600;line-height:1.5;color:var(--color-ink)}
+.settings .sky-body-panel :is(#moon-sky-status,#sun-sky-status){margin:12px 2px 10px;font-size:12px;line-height:1.65;color:var(--panel-muted);font-variant-numeric:tabular-nums}
+.settings .sky-body-panel .moon-preview-start{font-size:13px;min-height:44px;font-weight:600;color:var(--body-ink);background:var(--body-tint);white-space:normal}
+.settings .sky-body-panel .moon-preview-start .lucide{width:18px;height:18px;flex-shrink:0}
+.route-panel :is(.route-help p,.route-help summary,.point-position label,#route-choice small,.route-tabs button small,.route-moon-note){font-size:12px;color:var(--panel-muted)}
+.route-panel :is(#route-name,.point-position input,.route-tabs button strong){font-size:13px}
+.moon-preview :is(.moon-preview-limits,.moon-preview-head small){font-size:12px;color:var(--panel-muted)}
+.moon-preview .moon-preview-actions button{font-size:13px;font-weight:600}
+.moon-preview .panel-return,.route-panel .panel-return{font-size:12px;font-weight:600}
+/* Translate only: scaling text during panel transitions makes small glyphs shimmer. */
+@keyframes panel-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+@keyframes panel-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(14px)}}
+@keyframes panel-in-mobile{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+@keyframes panel-out-mobile{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-10px)}}
+@media(max-width:600px){.settings{top:78px;right:16px;width:min(340px,calc(100% - 32px));max-height:calc(100svh - 160px)}}

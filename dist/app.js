@@ -2,6 +2,7 @@ import {tools} from './tools.js';
 import {initCompanyLocation} from './company-location.js';
 import {initMoonSky} from './moon-sky.js';
 import {initSunSky} from './sun-sky.js';
+import {initSkySettings} from './sky-settings.js';
 import './vendor/lucide.min.js';
 
 const $ = (s) => document.querySelector(s);
@@ -36,6 +37,7 @@ function updateClock(){
 }
 updateClock();setInterval(updateClock,1000);
 initCompanyLocation();
+initSkySettings(savedNight?'moon':'sun');
 let uiTransition;
 function transitionTools(){
   if(reduced.matches||!document.startViewTransition){renderTools();return;}
