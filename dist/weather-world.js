@@ -34,12 +34,12 @@ export function createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudM
     strikeAt=elapsed;
   }
 
-  const target={cloud:0,rain:0,snow:0,fog:0,thunder:0,wind:0,groundSnow:0};
-  const look={cloud:0,rain:0,snow:0,fog:0,wind:0,overcast:0,gray:0,haze:0,wet:0,snowCover:0,flash:0};
+  const target={cloud:0,rain:0,snow:0,fog:0,thunder:0,wind:0,groundSnow:0,rainbow:0,forceRainbow:false};
+  const look={cloud:0,rain:0,snow:0,fog:0,wind:0,overcast:0,gray:0,haze:0,wet:0,snowCover:0,flash:0,rainbow:0};
   let easing=false;
   function setTarget(state){
     target.cloud=state?.cloud??0;target.rain=state?.rain??0;target.snow=state?.snow??0;target.fog=state?.fog??0;
-    target.thunder=state?.thunder??0;target.wind=state?.wind??0;target.groundSnow=state?.groundSnow??0;
+    target.thunder=state?.thunder??0;target.wind=state?.wind??0;target.groundSnow=state?.groundSnow??0;target.rainbow=state?.rainbow??0;target.forceRainbow=!!state?.forceRainbow;
     easing=true;
   }
   // Called every render, also while paused, so the light always catches up with the weather.
@@ -47,13 +47,13 @@ export function createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudM
     const d=mathUtils.damp,instant=reduced.matches;
     const move=(from,to,rate)=>instant?to:d(from,to,rate,delta);
     look.cloud=move(look.cloud,target.cloud,1.1);look.rain=move(look.rain,target.rain,1.2);look.snow=move(look.snow,target.snow,1.2);
-    look.fog=move(look.fog,target.fog,1);look.wind=move(look.wind,target.wind,1.4);
+    look.fog=move(look.fog,target.fog,1);look.wind=move(look.wind,target.wind,1.4);look.rainbow=move(look.rainbow,target.rainbow,.5);
     look.wet=move(look.wet,Math.min(1,target.rain*1.2),target.rain>look.wet?.6:.12);
     look.snowCover=move(look.snowCover,Math.min(1,target.groundSnow*1.1),target.groundSnow>look.snowCover?.3:.08);
     look.overcast=Math.max(mathUtils.smoothstep(look.cloud,.3,1),look.rain*.9,look.snow*.8,look.fog*.5);
     look.gray=Math.max(look.overcast*.75,look.fog*.9);
     look.haze=Math.min(1,look.fog+.3*look.rain+.22*look.snow);
-    easing=['cloud','rain','snow','fog','wind'].some(key=>Math.abs(look[key]-target[key])>.002)||Math.abs(look.wet-Math.min(1,target.rain*1.2))>.002||Math.abs(look.snowCover-Math.min(1,target.groundSnow*1.1))>.002;
+    easing=['cloud','rain','snow','fog','wind','rainbow'].some(key=>Math.abs(look[key]-target[key])>.002)||Math.abs(look.wet-Math.min(1,target.rain*1.2))>.002||Math.abs(look.snowCover-Math.min(1,target.groundSnow*1.1))>.002;
   }
   // Runs with the animation clock, so everything freezes when the scene is paused.
   function animate(delta,nightMix=0){
@@ -98,5 +98,5 @@ export function createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudM
     look.flash=age<0||age>1.2?0:.8*Math.max(pulse(age),.7*pulse(age-.18));
     boltMaterial.opacity=Math.min(1,look.flash/.8);bolt.visible=look.flash>.02;
   }
-  return {look,setTarget,ease,animate,isEasing:()=>easing,calm(){strikeAt=-10;look.flash=0;boltMaterial.opacity=0;bolt.visible=false;},setQuality(value){quality=value;},setActivity(value){activity=value;}};
+  return {look,target,setTarget,ease,animate,isEasing:()=>easing,calm(){strikeAt=-10;look.flash=0;boltMaterial.opacity=0;bolt.visible=false;},setQuality(value){quality=value;},setActivity(value){activity=value;}};
 }

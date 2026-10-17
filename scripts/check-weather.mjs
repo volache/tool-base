@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-const {mapWeather,adaptToBiome,validateCurrent,fetchWeather,createWeatherService,weatherPresets,weatherLabels,parseDaily,mapDaily,windLabel,visibilityLabel}=await import('../dist/weather.js');
+const {mapWeather,adaptToBiome,validateCurrent,fetchWeather,createWeatherService,weatherPresets,weatherLabels,parseDaily,mapDaily,windLabel,visibilityLabel,rainbowStrength,parseRecentRain}=await import('../dist/weather.js');
 const read=(code,cloud=0,wind=0,extra={})=>mapWeather({weather_code:code,cloud_cover:cloud,wind_speed_10m:wind,...extra});
 const daily={time:['2026-10-18','2026-10-19','2026-10-20','bad'],weather_code:[45,63,96,1],temperature_2m_max:[29,27.5,30,25],temperature_2m_min:[23,22,24,20],precipitation_probability_max:[6,80,90,0],cloud_cover_mean:[20,95,100,0]};
 const saturated={relative_humidity_2m:96,visibility:300};
@@ -44,6 +44,23 @@ assert.deepEqual(parseDaily({}),[]);assert.deepEqual(parseDaily({daily:{time:'x'
 assert.equal(parseDaily({daily:{...daily,weather_code:[45,'x',96]}}).length,2,'A malformed day is skipped.');
 const outlook=mapDaily(days);assert.equal(outlook[0].kind,'clear','Daily model fog over clear skies reads as clear.');assert.equal(outlook[1].kind,'rain');assert.equal(outlook[2].kind,'thunder');assert.equal(outlook[1].pop,80);assert.equal(outlook[0].label,'晴朗');
 assert.deepEqual(mapDaily(),[]);
+// Rainbow: needs rain in the last 3 hours, none falling now, and the sun breaking through
+const HOUR=3600000,T0=Date.UTC(2026,9,18,6,0,0);
+const dry={...read(2,40),rainbow:0};
+assert.equal(rainbowStrength(dry,T0-30*60000,T0),1,'Just after the rain, with sun: full strength.');
+assert(rainbowStrength(dry,T0-2.25*HOUR,T0)>0&&rainbowStrength(dry,T0-2.25*HOUR,T0)<1,'The rainbow fades between 1.5 and 3 hours.');
+assert.equal(rainbowStrength(dry,T0-4*HOUR,T0),0,'No rainbow long after the rain.');
+assert.equal(rainbowStrength(dry,null,T0),0,'No rain history, no rainbow.');
+assert.equal(rainbowStrength(read(63,100),T0-HOUR,T0),0,'Still raining: no rainbow.');
+assert.equal(rainbowStrength(read(95,100),T0-HOUR,T0),0,'Thunderstorm: no rainbow.');
+assert.equal(rainbowStrength({...dry,cloud:1},T0-HOUR,T0),0,'A solid overcast hides it.');
+assert.equal(rainbowStrength(dry,T0+HOUR,T0),0,'Rain in the future is not history.');
+assert(weatherPresets.rainbow.forceRainbow&&weatherPresets.rainbow.rainbow===1);assert.equal(weatherLabels.rainbow,'彩虹');
+// Hourly rain: Open-Meteo gives local-time stamps and a UTC offset (Taipei is +8)
+const rainData={utc_offset_seconds:28800,hourly:{time:['2026-10-18T10:00','2026-10-18T11:00','2026-10-18T12:00','2026-10-18T13:00'],precipitation:[0,1.4,0.1,0]}};
+assert.equal(parseRecentRain(rainData,Date.UTC(2026,9,18,6,0,0)),Date.UTC(2026,9,18,3,0,0),'11:00 local = 03:00 UTC is the last rainy hour; 0.1 mm does not count.');
+assert.equal(parseRecentRain(rainData,Date.UTC(2026,9,18,2,30,0)),null,'Hours after "now" are forecast, not history.');
+assert.equal(parseRecentRain({}),null);assert.equal(parseRecentRain({hourly:{time:['x'],precipitation:[3]}}),null);
 // Plain-language wind and visibility
 assert.equal(windLabel(0),'無風');assert.equal(windLabel(2),'輕風');assert.equal(windLabel(6),'和風');assert.equal(windLabel(15),'疾風');assert.equal(windLabel(30),'暴風');
 assert.equal(visibilityLabel(24140),'24 公里以上');assert.equal(visibilityLabel(3200),'3.2 公里');assert.equal(visibilityLabel(620),'620 公尺');assert.equal(visibilityLabel(null),null);assert.equal(visibilityLabel(undefined),null);

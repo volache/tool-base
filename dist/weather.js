@@ -5,7 +5,7 @@ const CACHE_KEY='tool-portal-weather-v1';
 const FRESH_MS=15*60*1000,STALE_MS=3*60*60*1000,TIMEOUT_MS=8000;
 const clamp=(value,min=0,max=1)=>Math.min(max,Math.max(min,value));
 
-export const weatherLabels={clear:'晴朗',partly:'多雲',cloudy:'陰天',fog:'霧',drizzle:'毛毛雨',rain:'下雨',snow:'下雪',thunder:'雷雨',windy:'大風'};
+export const weatherLabels={clear:'晴朗',partly:'多雲',cloudy:'陰天',fog:'霧',drizzle:'毛毛雨',rain:'下雨',snow:'下雪',thunder:'雷雨',windy:'大風',rainbow:'彩虹'};
 
 // Hand-picked states used for the preview menu. They go through the same renderer as real data.
 export const weatherPresets={
@@ -17,7 +17,9 @@ export const weatherPresets={
   rain:{kind:'rain',cloud:1,rain:.8,snow:0,fog:0,thunder:0,wind:.4},
   snow:{kind:'snow',cloud:.95,rain:0,snow:.8,fog:0,thunder:0,wind:.25},
   thunder:{kind:'thunder',cloud:1,rain:1,snow:0,fog:0,thunder:1,wind:.7},
-  windy:{kind:'windy',cloud:.35,rain:0,snow:0,fog:0,thunder:0,wind:1}
+  windy:{kind:'windy',cloud:.35,rain:0,snow:0,fog:0,thunder:0,wind:1},
+  // Previewing a rainbow ignores the sun's height (it would otherwise only show in the right hours), but still needs daylight.
+  rainbow:{kind:'rainbow',cloud:.45,rain:0,snow:0,fog:0,thunder:0,wind:.15,rainbow:1,forceRainbow:true}
 };
 
 // Beaufort scale in plain Chinese, from wind speed in m/s.
@@ -50,6 +52,29 @@ export function mapWeather({weather_code:rawCode,cloud_cover:cover=0,wind_speed_
   const wet=Math.max(rain,snow);
   if(wet>0)cloud=Math.max(cloud,.8+.2*wet);
   return {kind,cloud,rain,snow,fog,thunder,wind};
+}
+
+// Rain that fell in the last few hours plus sunshine now makes a rainbow. lastWetAt is the end of the most recent rainy hour.
+export function rainbowStrength(state,lastWetAt,now){
+  if(!state||!Number.isFinite(lastWetAt))return 0;
+  if(state.rain>=.15||state.snow>=.15||state.thunder>0||state.fog>.3)return 0;
+  const age=now-lastWetAt;
+  if(age<0||age>3*60*60*1000)return 0;
+  const fade=age<=90*60*1000?1:1-(age-90*60*1000)/(90*60*1000);
+  const open=1-clamp((state.cloud-.7)/.25);
+  return clamp(fade*open);
+}
+// Open-Meteo's hourly precipitation at time T is the total of the hour ending at T. Returns the latest rainy hour end (ms) or null.
+export function parseRecentRain(data,now=Date.now()){
+  const hourly=data?.hourly,offset=Number(data?.utc_offset_seconds)||0;
+  if(!hourly||!Array.isArray(hourly.time)||!Array.isArray(hourly.precipitation))return null;
+  let latest=null;
+  for(let i=0;i<hourly.time.length;i++){
+    const amount=hourly.precipitation[i],stamp=Date.parse(`${hourly.time[i]}Z`)-offset*1000;
+    if(typeof amount!=='number'||!(amount>=.2)||!Number.isFinite(stamp)||stamp>now)continue;
+    if(latest===null||stamp>latest)latest=stamp;
+  }
+  return latest;
 }
 
 // The same weather reads differently in different scenes: no snow in the desert, and it never rains on the snowfield.
@@ -99,24 +124,24 @@ const roundedCoordinate=value=>Math.round(value*100)/100;
 export function weatherKey(location){return `${roundedCoordinate(location.lat)},${roundedCoordinate(location.lng)}`;}
 
 export async function fetchWeather(location,{fetchImpl=globalThis.fetch,timeout=TIMEOUT_MS}={}){
-  const query=new URLSearchParams({latitude:String(roundedCoordinate(location.lat)),longitude:String(roundedCoordinate(location.lng)),current:'weather_code,cloud_cover,wind_speed_10m,temperature_2m,relative_humidity_2m,visibility',daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,cloud_cover_mean',forecast_days:'3',wind_speed_unit:'ms',timezone:'auto'});
+  const query=new URLSearchParams({latitude:String(roundedCoordinate(location.lat)),longitude:String(roundedCoordinate(location.lng)),current:'weather_code,cloud_cover,wind_speed_10m,temperature_2m,relative_humidity_2m,visibility',daily:'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,cloud_cover_mean',forecast_days:'3',hourly:'precipitation',past_hours:'6',forecast_hours:'1',wind_speed_unit:'ms',timezone:'auto'});
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
   try{
     const response=await fetchImpl(`${ENDPOINT}?${query}`,{signal:controller.signal,headers:{Accept:'application/json'}});
     if(!response.ok)throw new Error(`天氣服務回應 ${response.status}`);
     const data=await response.json();
-    return {current:validateCurrent(data),daily:parseDaily(data)};
+    return {current:validateCurrent(data),daily:parseDaily(data),lastWetAt:parseRecentRain(data)};
   }finally{clearTimeout(timer);}
 }
 
 function readCache(storage,key,now){
   try{
     const entry=JSON.parse(storage.getItem(CACHE_KEY));
-    if(entry&&entry.key===key&&Number.isFinite(entry.at)&&now-entry.at<STALE_MS)return {at:entry.at,current:validateCurrent({current:entry.current}),daily:parseDaily({daily:entry.daily})};
+    if(entry&&entry.key===key&&Number.isFinite(entry.at)&&now-entry.at<STALE_MS)return {at:entry.at,current:validateCurrent({current:entry.current}),daily:parseDaily({daily:entry.daily}),lastWetAt:Number.isFinite(entry.lastWetAt)?entry.lastWetAt:null};
   }catch{}
   return null;
 }
-function writeCache(storage,key,at,current,daily){try{storage.setItem(CACHE_KEY,JSON.stringify({key,at,current,daily:daily&&{time:daily.map(d=>d.date),weather_code:daily.map(d=>d.code),temperature_2m_max:daily.map(d=>d.tmax),temperature_2m_min:daily.map(d=>d.tmin),precipitation_probability_max:daily.map(d=>d.pop),cloud_cover_mean:daily.map(d=>d.cloud)}}));}catch{}}
+function writeCache(storage,key,at,current,daily,lastWetAt){try{storage.setItem(CACHE_KEY,JSON.stringify({key,at,current,lastWetAt,daily:daily&&{time:daily.map(d=>d.date),weather_code:daily.map(d=>d.code),temperature_2m_max:daily.map(d=>d.tmax),temperature_2m_min:daily.map(d=>d.tmin),precipitation_probability_max:daily.map(d=>d.pop),cloud_cover_mean:daily.map(d=>d.cloud)}}));}catch{}}
 
 // Keeps the latest weather, refreshing every 15 minutes while the page is visible. Failures never surface as errors:
 // the last good reading is kept for up to 3 hours, then the scene simply returns to clear.
@@ -126,7 +151,7 @@ export function createWeatherService({getLocation,onChange,fetchImpl,storage=glo
     const location=getLocation();
     if(!enabled||!location)return {status:enabled?'nolocation':'off',state:null,temperature:null,updatedAt:null};
     const current=entry?.current;
-    return {status,state:entry?mapWeather(current):null,temperature:entry?current.temperature_2m:null,updatedAt:entry?.at??null,
+    return {status,state:entry?{...mapWeather(current),rainbow:rainbowStrength(mapWeather(current),entry.lastWetAt,now())}:null,temperature:entry?current.temperature_2m:null,updatedAt:entry?.at??null,
       details:entry?{humidity:current.relative_humidity_2m??null,wind:current.wind_speed_10m,cloud:current.cloud_cover,visibility:current.visibility??null}:null,
       forecast:entry?mapDaily(entry.daily):[]};
   }
@@ -143,8 +168,8 @@ export function createWeatherService({getLocation,onChange,fetchImpl,storage=glo
     status='loading';
     inflight=(async()=>{
       try{
-        const {current,daily}=await fetchWeather(location,{fetchImpl});
-        entry={key,at:now(),current,daily};writeCache(storage,key,entry.at,current,daily);status='ok';
+        const {current,daily,lastWetAt}=await fetchWeather(location,{fetchImpl});
+        entry={key,at:now(),current,daily,lastWetAt};writeCache(storage,key,entry.at,current,daily,lastWetAt);status='ok';
       }catch{
         if(entry&&now()-entry.at>=STALE_MS)entry=null;
         status='error';

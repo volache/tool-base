@@ -271,7 +271,7 @@ try{
   try{weatherOn=localStorage.getItem('tool-portal-weather')!=='false';}catch{}
   const weatherClock=new Intl.DateTimeFormat('zh-TW',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   const weatherService=createWeatherService({getLocation:readCompanyLocation,onChange:renderWeather});
-  const weatherIcons={'':'radio-tower',clear:'sun',partly:'cloud-sun',cloudy:'cloud',fog:'cloud-fog',drizzle:'cloud-drizzle',rain:'cloud-rain',snow:'snowflake',thunder:'cloud-lightning',windy:'wind'};
+  const weatherIcons={'':'radio-tower',clear:'sun',partly:'cloud-sun',cloudy:'cloud',fog:'cloud-fog',drizzle:'cloud-drizzle',rain:'cloud-rain',snow:'snowflake',thunder:'cloud-lightning',windy:'wind',rainbow:'rainbow'};
   // Compact weather beside the clock: the real reading, or the previewed weather while previewing.
   function renderClockWeather(snapshot,location){
     const chip=$('#current-weather'),previewing=!!weatherOverride;
@@ -297,6 +297,7 @@ try{
     $('#weather-pop-title').textContent=weatherLabels[kind];
     $('#weather-pop-icon').replaceChildren(createIcon(weatherIcons[kind]));
     const showLive=!previewing&&live;
+    $('#weather-pop-hint').hidden=!(showLive&&snapshot.state.rainbow>.3)&&weatherOverride!=='rainbow';
     $('#weather-pop-temp').textContent=showLive&&Number.isFinite(snapshot.temperature)?`${Math.round(snapshot.temperature)}°C`:'';
     const rows=showLive&&snapshot.details?[['濕度',snapshot.details.humidity!==null?`${Math.round(snapshot.details.humidity)}%`:null],['風',`${windLabel(snapshot.details.wind)} · ${snapshot.details.wind.toFixed(1)} m/s`],['雲量',`${Math.round(snapshot.details.cloud)}%`],['能見度',visibilityLabel(snapshot.details.visibility)]].filter(row=>row[1]):[];
     $('#weather-pop-details').replaceChildren(...rows.map(([name,value])=>{const box=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=name;dd.textContent=value;box.append(dt,dd);return box;}));

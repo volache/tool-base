@@ -9,6 +9,7 @@ import {getMoonSkyState,getMoonPanoramaHeight} from './moon-sky.js';
 import {createSunWorld} from './sun-world.js';
 import {getSkyNight,getTwilightState} from './sky-model.js';
 import {createWeatherWorld} from './weather-world.js';
+import {createRainbow,rainbowSunFactor} from './rainbow.js';
 import {adaptToBiome} from './weather.js';
 import {createDayLife} from './day-life.js';
 
@@ -435,7 +436,8 @@ export async function createWorld(container,options={}){
   const groundSpeed=2.65;
   const dayLife=createDayLife(THREE,{scene,belt,cube,random,groundSpeed});
   const weatherWorld=createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial:whiteMat});
-  let weatherState=null,lastWeatherSync=0,cloudPhase=0;
+  const rainbow=createRainbow(THREE,{scene}),sunNdc=new THREE.Vector2();
+  let weatherState=null,lastWeatherSync=0,cloudPhase=0,sunAltitude=null;
   const weatherApplied={overcast:-1,gray:-1,haze:-1,wet:-1,snowCover:-1,flash:-1};
   const weatherColor=new THREE.Color();
   // Shadow casters must use the same world-space coastline as visible terrain.
@@ -582,8 +584,14 @@ export async function createWorld(container,options={}){
   function syncWeather(){
     const now=performance.now(),dt=Math.min(.1,(now-lastWeatherSync)/1000);lastWeatherSync=now;
     weatherWorld.ease(dt);
+    // Rainbow strength: recent rain with sun breaking through, a low sun (unless previewing), daylight, and no overcast.
+    const look=weatherWorld.look,forced=weatherWorld.target.forceRainbow;
+    const sunFactor=forced||sunAltitude===null?1:rainbowSunFactor(sunAltitude);
+    const strength=look.rainbow*sunFactor*(1-nightMix*(forced?.85:1))*(1-.9*Math.max(0,look.overcast-.45)/.55);
+    sunWorld.getScreenPosition(sunNdc);
+    rainbow.update({sun:sunNdc,aspect:camera.aspect,strength:Math.max(0,strength),rich:activity>1.2});
     if(sceneTransition)return;
-    const look=weatherWorld.look;let changed=false;
+    let changed=false;
     for(const key of Object.keys(weatherApplied))if(Math.abs(look[key]-weatherApplied[key])>(key==='flash'?.02:.004)){changed=true;break;}
     if(changed){for(const key of Object.keys(weatherApplied))weatherApplied[key]=look[key];updatePalette();}
   }
@@ -695,14 +703,14 @@ export async function createWorld(container,options={}){
     const now=performance.now(),dt=Math.min(.1,(now-lastSkySync)/1000);lastSkySync=now;
     // Releasing the sky clock must never wait for a scene change, or a manual day/night switch made meanwhile would be lost.
     if(!source){
-      skyDriven=false;skyEasing=false;
+      skyDriven=false;skyEasing=false;sunAltitude=null;
       if(twilight.amount>0&&!sceneTransition){twilight={amount:0,dusk:false};updatePalette();}
       return;
     }
     if(sceneTransition)return;
     const position=globalThis.SunCalc.getPosition(new Date(source.time),source.location.lat,source.location.lng);
     const target=getSkyNight(position.altitude),glow=getTwilightState(position);
-    skyDriven=true;themeTransition=undefined;
+    skyDriven=true;themeTransition=undefined;sunAltitude=position.altitude;
     let mix=nightMix+(target-nightMix)*(reducedMotion.matches?1:1-Math.exp(-dt*7));
     if(Math.abs(target-mix)<.003)mix=target;
     skyEasing=mix!==target;

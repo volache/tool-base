@@ -36,5 +36,6 @@ export function createSunWorld(THREE,{scene,camera}){
       config.onStatus?.({...state,inView:group.visible&&Math.abs(screen.x)<1.04&&Math.abs(screen.y)<1.04,screen:{x:screen.x,y:screen.y}});
     }
   }
-  return {setTracking,update,isTransitioning:()=>!!transition};
+  const ndc=new THREE.Vector3();
+  return {setTracking,update,isTransitioning:()=>!!transition,getScreenPosition(out){ndc.copy(group.position).project(camera);return out.set(ndc.x,ndc.y);}};
 }
