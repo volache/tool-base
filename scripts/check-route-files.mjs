@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {readRouteFile,exportRouteFile,defaultRouteSet} from '../dist/route-data.js';
+const all=defaultRouteSet();
+all.routes[0].name='靜態測試';all.dynamicRoutes[0].name='動態測試';
+all.dynamicRoutes[0].duration=9;all.dynamicRoutes[0].nodes[1].out=[.13,-.07];
+const file=exportRouteFile(all);
+assert.deepEqual(readRouteFile(JSON.parse(JSON.stringify(file))),all);
+assert.deepEqual(file.routes.map(r=>r.mode),['static','dynamic']);
+const legacy=readRouteFile({version:4,routes:all.routes});
+assert.deepEqual(legacy.routes,all.routes);assert.equal(legacy.dynamicRoutes.length,1);
+assert.throws(()=>readRouteFile({version:5,routes:[file.routes[0]]}));
+assert.throws(()=>readRouteFile({version:5,routes:[...file.routes,{...file.routes[1],duration:0}]}));
+assert.throws(()=>readRouteFile({version:5,routes:[...file.routes,{...file.routes[1],nodes:[]}]}));
+console.log('Route files: both modes round-trip without coordinate loss; legacy and invalid imports checked.');

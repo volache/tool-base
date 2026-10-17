@@ -152,12 +152,12 @@ export async function createWorld(container,options={}){
   const ufoLights=new THREE.MeshBasicMaterial({color:'#f2df99',fog:false,toneMapped:false});
   for(let i=0;i<6;i++){const a=i/6*Math.PI*2;box(ufo,Math.cos(a)*.84,-.12,Math.sin(a)*.84,.16,.1,.16,ufoLights,false);}
   let nextUfoAt=12,ufoFlight,ufoRoute=0;
-  let customUfoCurve,ufoDuration=16,routePreview=false,customUfoRoutes=[],ufoRouteConfigs=[],previewUfoConfig;
+  let customUfoCurve,ufoDuration=16,routePreview=false,customUfoRoutes=[],ufoRouteConfigs=[],dynamicUfoConfigs=[structuredClone(dynamicMoonUfoRoute)],previewUfoConfig;
   const flightPosition=new THREE.Vector3(),flightTangent=new THREE.Vector3();
   function createUfoFlight(){
     const index=ufoRoute++;
     if(customUfoRoutes.length){const route=customUfoRoutes[index%customUfoRoutes.length];customUfoCurve=route.curve;ufoDuration=route.duration;}
-    if(moonTracking.enabled&&!routePreview){customUfoCurve=buildUfoCurve(structuredClone(dynamicMoonUfoRoute));ufoDuration=dynamicMoonUfoRoute.duration;}
+    if(moonTracking.enabled&&!routePreview){const route=dynamicUfoConfigs[index%dynamicUfoConfigs.length];customUfoCurve=buildUfoCurve(route);ufoDuration=route.duration;}
     return {start:elapsed,duration:ufoDuration,variant:0,radius:5.5,phase:0,routeIndex:index,anchor:moon.position.clone()};
   }
   function sampleUfoFlight(flight,t,target){
@@ -215,7 +215,8 @@ export async function createWorld(container,options={}){
     ufoFlight=undefined;nextUfoAt=elapsed;
     requestTick();
   }
-  function setUfoRoutes(routes){
+  function setUfoRoutes(routes,dynamicRoutes){
+    if(dynamicRoutes?.length)dynamicUfoConfigs=structuredClone(dynamicRoutes);
     previewUfoConfig=undefined;ufoRouteConfigs=routes??[];
     customUfoRoutes=ufoRouteConfigs.map(route=>({curve:buildUfoCurve(route),duration:route.duration})).filter(route=>route.curve);
     customUfoCurve=undefined;ufoDuration=16;ufoRoute=0;ufoFlight=undefined;nextUfoAt=elapsed;requestTick();

@@ -1,6 +1,6 @@
 // Approved route exported by the site owner. Coordinates are relative to the moon.
 export const defaultUfoRoute = {
-  "name": "自訂航線",
+  "name": "靜態月亮預設航線",
   "nodes": [
     {
       "p": [
@@ -174,10 +174,10 @@ export const defaultUfoRoute = {
 // The tracked moon moves across the whole sky. This route passes through the scene
 // instead of orbiting a moving target, so it keeps a readable, continuous silhouette.
 export const dynamicMoonUfoRoute={
-  name:'月亮升落航線',duration:12,nodes:[
-    {p:[.74,.19],in:[0,0],out:[-.22,-.08],smooth:true},
-    {p:[.29,.04],in:[.10,.05],out:[-.13,-.11],smooth:true},
-    {p:[-.12,-.08],in:[.12,.09],out:[-.17,.06],smooth:true},
-    {p:[-.69,.16],in:[.2,-.08],out:[0,0],smooth:true}
+  name:'動態月亮預設航線',duration:8,nodes:[
+    {p:[0.7501931330472102,-0.05773755656108594],in:[0,0],out:[-0.21999999999999997,-0.08],smooth:true},
+    {p:[0.008884120171673726,0.032081447963800885],in:[0.07824857066180256,0.0018458542250929467],out:[-0.1226651755808288,-0.002893625157656344],smooth:true},
+    {p:[-0.326008583690987,-0.09018099547511313],in:[0.12022281958884101,0.01890467775450471],out:[-0.06719962894213695,-0.010566940076086053],smooth:true},
+    {p:[-0.8181248198961374,-0.007420814479638049],in:[0.20032188841201715,0.08433454200789839],out:[0,0],smooth:true}
   ]
 };
