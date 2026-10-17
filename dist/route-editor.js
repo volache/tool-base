@@ -36,14 +36,40 @@ export function initRouteEditor(world,{begin,end}){
   for(const kind of ['in','out']){
     const circle=document.createElementNS(ns,'circle');circle.dataset.handle=kind;circle.setAttribute('r','7');circle.setAttribute('tabindex','0');circle.setAttribute('role','button');controls.append(circle);
   }
+  let routeHighlight=0;
+  function highlightRoute(index){
+    routeHighlight=(index+routes.length)%routes.length;
+    [...$('route-tabs').children].forEach((button,i)=>button.classList.toggle('highlighted',i===routeHighlight));
+    $('route-choice').setAttribute('aria-activedescendant',`route-option-${routeHighlight}`);
+  }
+  function closeRoutePicker(focus=false){$('route-tabs').hidden=true;$('route-choice').setAttribute('aria-expanded','false');$('route-choice').removeAttribute('aria-activedescendant');if(focus)$('route-choice').focus();}
+  function openRoutePicker(){routeTabs();$('route-tabs').hidden=false;$('route-choice').setAttribute('aria-expanded','true');highlightRoute(routeIndex);}
+  function chooseRoute(index){routeIndex=index;config=routes[index];selectedPoint=0;applyDraft();routeTabs();closeRoutePicker(true);}
   function routeTabs(){
+    $('route-choice-name').textContent=routes[routeIndex].name||`航線 ${routeIndex+1}`;
+    $('route-choice-meta').textContent=`${routes[routeIndex].nodes.length} 個航點 · ${routes[routeIndex].duration} 秒`;
     $('route-tabs').replaceChildren(...routes.map((route,index)=>{
-      const button=document.createElement('button');button.type='button';button.textContent=route.name||`航線 ${index+1}`;
-      button.setAttribute('aria-pressed',String(index===routeIndex));
-      button.addEventListener('click',()=>{routeIndex=index;config=routes[index];selectedPoint=0;applyDraft();routeTabs();$('route-tabs').children[index].focus();});return button;
+      const button=document.createElement('button'),title=document.createElement('strong'),meta=document.createElement('small'),text=document.createElement('span'),check=document.createElement('i');
+      button.type='button';button.id=`route-option-${index}`;button.tabIndex=-1;button.setAttribute('role','option');button.setAttribute('aria-selected',String(index===routeIndex));
+      title.textContent=route.name||`航線 ${index+1}`;meta.textContent=`${route.nodes.length} 個航點 · ${route.duration} 秒`;text.append(title,meta);check.dataset.lucide='check';check.setAttribute('aria-hidden','true');button.append(text,check);
+      button.addEventListener('pointerenter',()=>highlightRoute(index));button.addEventListener('click',()=>chooseRoute(index));return button;
     }));
     $('route-add').disabled=routes.length>=12;$('route-delete').disabled=routes.length<=1;
+    globalThis.lucide.createIcons({attrs:{'aria-hidden':'true',focusable:'false','stroke-width':1.8}});
   }
+  $('route-choice').addEventListener('click',()=>{$('route-tabs').hidden?openRoutePicker():closeRoutePicker();});
+  $('route-choice').addEventListener('keydown',event=>{
+    const key=event.key;
+    if(['ArrowDown','ArrowUp','Home','End','Enter',' '].includes(key)){
+      event.preventDefault();const wasClosed=$('route-tabs').hidden;
+      if(wasClosed)openRoutePicker();
+      if(key==='Home')highlightRoute(0);else if(key==='End')highlightRoute(routes.length-1);
+      else if((key==='ArrowDown'||key==='ArrowUp')&&!wasClosed)highlightRoute(routeHighlight+(key==='ArrowDown'?1:-1));
+      else if((key==='Enter'||key===' ')&&!wasClosed)chooseRoute(routeHighlight);
+      $('route-tabs').children[routeHighlight]?.scrollIntoView({block:'nearest'});
+    }else if(key==='Tab')closeRoutePicker();
+  });
+  document.addEventListener('pointerdown',event=>{if(!$('route-picker').contains(event.target))closeRoutePicker();});
   function draw(){
     ensureHandles();
     const {width,height}=svg.getBoundingClientRect(),guide=world.getUfoGuide();
@@ -72,6 +98,8 @@ export function initRouteEditor(world,{begin,end}){
     });
     controlLine.setAttribute('d',lines.join(' '));$('point-mode').textContent=node.smooth===false?'轉角航點':'平滑航點';$('point-mode').setAttribute('aria-pressed',String(node.smooth!==false));
     $('ufo-duration').value=config.duration;$('ufo-duration-label').textContent=`${config.duration} 秒`;
+    $('ufo-duration').style.setProperty('--flight-progress',`${(config.duration-8)/20*100}%`);
+    $('route-choice-meta').textContent=`${config.nodes.length} 個航點 · ${config.duration} 秒`;
   }
   let pendingFrame=0;
   function applyDraft(){
@@ -88,7 +116,7 @@ export function initRouteEditor(world,{begin,end}){
     $('route-status').textContent=reduced?'已依系統偏好停止動畫，仍可編輯與匯出航線。':'儲存後依序輪換所有航線，僅套用在此瀏覽器。';$('route-close').focus();
   }
   function close(){
-    if(!active)return;active=false;dragIndex=-1;root.hidden=true;
+    if(!active)return;active=false;dragIndex=-1;closeRoutePicker();root.hidden=true;
     if(pendingFrame){cancelAnimationFrame(pendingFrame);pendingFrame=0;}
     document.querySelectorAll('header,main,footer,#settings').forEach(el=>el.inert=false);
     world.previewUfoRoute(false);world.setUfoRoutes(saved?.routes??defaults());end(previous);$('settings-toggle').focus();
@@ -198,7 +226,7 @@ export function initRouteEditor(world,{begin,end}){
   });
   document.addEventListener('keydown',event=>{
     if(!active)return;
-    if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();close();return;}
+    if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();if(!$('route-tabs').hidden)closeRoutePicker(true);else close();return;}
     if(event.key==='Tab'){
       const focusable=[...root.querySelectorAll('button:not(:disabled),input,[tabindex="0"]')].filter(el=>el.getBoundingClientRect().width>0),index=focusable.indexOf(document.activeElement);
       if(event.shiftKey&&index<=0){event.preventDefault();focusable.at(-1).focus();}
