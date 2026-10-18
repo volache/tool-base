@@ -70,3 +70,19 @@ export async function 預覽太陽與月亮時天色符合該時間({open,assert
   const moonNight=await setTime('moon',3*60);
   assert(luminance(moonNight)<90,`月亮預覽的凌晨 3 點是夜晚：${moonNight}`);
 }
+
+export async function 晴朗的夜裡月亮完整沒有被看不見的雲咬掉({open,assert}){
+  const page=await open({now:at('21:30'),weather:clearWeather});await page.goto();
+  await page.run("q('#launcher-toggle').click();await w(6500);");
+  const bright=await page.scan([935,195,1070,285],(r,g,b)=>r>200&&g>190&&b>150);
+  assert(bright>350,`晴夜應看得到完整的亮面月亮（亮面約 500 像素以上）：${bright}`);
+}
+
+export async function 月亮周圍有柔和光暈而且比遠處天空亮({open,assert}){
+  const page=await open({now:at('21:30'),weather:clearWeather});await page.goto();
+  await page.run("q('#launcher-toggle').click();await w(6500);");
+  const ring=luminance(await page.pixel([1048,236,1066,244])),far=luminance(await page.pixel([640,236,660,244]));
+  assert(ring>far+8,`月暈 ${ring} 應明顯比遠處天空 ${far} 亮`);
+  const edge=luminance(await page.pixel([1075,236,1090,244]));
+  assert(edge<ring&&edge>=far,`光暈向外逐漸淡出：環 ${ring} → 外圈 ${edge} → 遠處 ${far}`);
+}

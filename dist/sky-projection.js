@@ -9,7 +9,9 @@ export function createPanoramaHeight(readState){
       for(let i=0;i<=192;i++)peak=Math.max(peak,Math.sin(readState(bounds.start+(bounds.end-bounds.start)*i/192,location).altitude));
       cache={...bounds,key,peak};
     }
-    const amplitude=globalThis.innerWidth<600?.68:.80;
-    return .025+Math.sin(state.altitude)/cache.peak*amplitude;
+    // At altitude 0 the sun's centre sits 0.2 above the screen centre: its lower edge then just meets the terrain's far edge (0.134), where it has already faded out completely.
+    // The peak height is unchanged (0.825 on desktop).
+    const amplitude=globalThis.innerWidth<600?.5:.625;
+    return .2+Math.sin(state.altitude)/cache.peak*amplitude;
   };
 }

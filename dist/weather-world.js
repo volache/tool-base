@@ -1,6 +1,6 @@
 // Weather as geometry: rain streaks, snowflakes, extra clouds, lightning bolts and the "look" numbers the world uses to grade
 // light, fog and surfaces. All values ease toward the target so changing weather never jumps.
-export function createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial}){
+export function createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial,cloudParent=scene}){
   const MAX_RAIN=420,MAX_SNOW=300,FALL=34;
   const mathUtils=THREE.MathUtils,transform=new THREE.Object3D(),scratch=new THREE.Color();
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
@@ -16,7 +16,7 @@ export function createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudM
 
   // Extra clouds appear one by one as the cover grows, so a cloudy day is visibly busier than a clear one.
   const clouds=[[-58,11,-48,.8],[8,20,-70,1.0],[-14,9,-60,.7],[38,12,-52,.85],[62,18,-82,1.0],[-34,21,-92,.9],[20,8,-44,.65],[-70,15,-76,.95],[48,22,-100,1.05],[-6,16,-88,.8]].map(([x,y,z,scale],index,all)=>{
-    const mesh=new THREE.Mesh(cloudGeometry,cloudMaterial);mesh.position.set(x,y,z);mesh.visible=false;scene.add(mesh);
+    const mesh=new THREE.Mesh(cloudGeometry,cloudMaterial);mesh.position.set(x,y,z);mesh.visible=false;cloudParent.add(mesh);
     return {mesh,x,scale,threshold:.12+index/all.length*.62,speed:.12+random()*.18};
   });
 

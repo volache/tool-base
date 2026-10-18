@@ -4,13 +4,14 @@ import {ensureOffscreenEndpoints} from './route-curves.js';
 import {defaultUfoRoute,dynamicMoonUfoRoute} from './ufo-default-route.js';
 import {createSnowWorld} from './snow-world.js';
 import {createForestWorld} from './forest-world.js';
-import {createCityWorld} from './city-world.js';
+import {createCityWorld,isRoadBand} from './city-world.js';
 import {createMoonPhase} from './moon-phase.js';
 import {getMoonSkyState,getMoonPanoramaHeight} from './moon-sky.js';
 import {createSunWorld} from './sun-world.js';
 import {getSkyNight,getTwilightState} from './sky-model.js';
 import {createWeatherWorld} from './weather-world.js';
 import {createRainbow,rainbowSunFactor} from './rainbow.js';
+import {createSkyGlow} from './sky-glow.js';
 import {adaptToBiome} from './weather.js';
 import {createDayLife} from './day-life.js';
 
@@ -27,7 +28,7 @@ export async function createWorld(container,options={}){
   container.append(renderer.domElement);
   renderer.domElement.setAttribute('aria-hidden','true');
   const scene=new THREE.Scene();
-  const camera=new THREE.PerspectiveCamera(37,1,.1,190);
+  const camera=new THREE.PerspectiveCamera(37,1,.1,420);
   camera.position.set(0,9,28);camera.lookAt(0,5,-12);
   scene.background=new THREE.Color('#d4e8f0');
   scene.fog=new THREE.Fog('#d4e8f0',38,115);
@@ -61,7 +62,7 @@ export async function createWorld(container,options={}){
   const darkSide=new THREE.MeshStandardMaterial({color:'#657173',roughness:.7});
   const eyeWhite=new THREE.MeshStandardMaterial({color:'#faf6df',roughness:.7});
   const eyeBlack=new THREE.MeshStandardMaterial({color:'#26343b',roughness:.7});
-  const whiteMat=new THREE.MeshStandardMaterial({color:'#fff9e8',roughness:.92,transparent:true});
+  const whiteMat=new THREE.MeshStandardMaterial({color:'#fff9e8',roughness:.92,transparent:true,fog:false,depthWrite:false});
   const waterMat=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.3,metalness:.08,side:THREE.DoubleSide,vertexColors:true,flatShading:true});
   const foamMat=new THREE.MeshStandardMaterial({color:'#e8fbf6',roughness:.42});
   function createWaterReflection(night){
@@ -100,7 +101,9 @@ export async function createWorld(container,options={}){
   function random(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
   // Open horizon: no stacked mountain boxes behind the launcher.
   // One continuous, bevelled silhouette per cloud gives it a soft toy-like outline.
-  const cloudGroup=new THREE.Group();scene.add(cloudGroup);
+  // Clouds sit in a group scaled about the camera: they look exactly as before, but lie far behind the skyline, so buildings and trees hide them.
+  const SKY_SCALE=2.3,skyClouds=new THREE.Group();skyClouds.scale.setScalar(SKY_SCALE);skyClouds.position.copy(camera.position).multiplyScalar(1-SKY_SCALE);scene.add(skyClouds);
+  const cloudGroup=new THREE.Group();skyClouds.add(cloudGroup);
   const cloudShape=new THREE.Shape();
   cloudShape.moveTo(-3,0);cloudShape.bezierCurveTo(-4.3,0,-4.4,1.8,-2.9,2);
   cloudShape.bezierCurveTo(-2.7,3.6,-.6,3.8,0,2.6);cloudShape.bezierCurveTo(1.2,3.2,2.5,2.5,2.4,1.7);
@@ -112,6 +115,9 @@ export async function createWorld(container,options={}){
   const nightSky=new THREE.Group();scene.add(nightSky);
   const moonPhase=createMoonPhase(THREE);
   const moon=new THREE.Mesh(new THREE.SphereGeometry(1.35,48,32),moonPhase.material);moon.position.set(23,18,-48);nightSky.add(moon);
+  // The moon is drawn before the clouds (an opaque cloud hides it) and its soft haze afterwards, so the haze spreads over the cloud edges.
+  moon.renderOrder=-2;
+  const moonGlow=createSkyGlow(THREE,{color:'#e2eaff',size:4.4,bodyRadius:1.35});nightSky.add(moonGlow.mesh);
   const fixedMoonPosition=moon.position.clone(),moonScreen=new THREE.Vector3(),moonTarget=new THREE.Vector3();
   const sunWorld=createSunWorld(THREE,{scene,camera});
   function setSunTracking(config){sunWorld.setTracking(config);if(paused)render();requestTick();}
@@ -126,20 +132,23 @@ export async function createWorld(container,options={}){
       moon.visible=progress<1||visible;
       if(progress>=1){moonTransition=undefined;moonStatusSecond=-1;}
     }else{moon.position.copy(target);moonOpacity=opacity;moon.visible=visible;}
-    moonOrientation=shownOrientation;moonHorizon=shownHorizon;moonPhase.material.depthTest=shownHorizon===0;moonPhase.setOrientation(shownOrientation);moonPhase.setHorizon(shownHorizon,.02);moonPhase.setOpacity(moonOpacity);
+    moonOrientation=shownOrientation;moonHorizon=shownHorizon;moonPhase.setOrientation(shownOrientation);moonPhase.setHorizon(shownHorizon,.02);moonPhase.setOpacity(moonOpacity);
+    // Haze around the moon: stronger when it is fuller and when cloud passes in front of it; follows the moon's own horizon cut.
+    moonGlow.mesh.position.copy(moon.position);
+    moonGlow.set(moon.visible?moonOpacity*Math.max(nightMix,.05)*(.3+.35*moonPhase.fraction())*(1+.2*weatherWorld.look.cloud):0,4.4*(1+.2*weatherWorld.look.cloud),shownHorizon===2?2:0);
   }
   function updateMoonPosition(){
     const tracking=moonTracking.location&&(routePreview?routePreviewDynamic:moonTracking.enabled);
     const time=tracking?(routePreview?routePreviewTime:(moonTracking.previewTime??Date.now())):Date.now();
     moonTracksSky=!!tracking;
     moonPhase.update(time);moonPhase.setDaylight(1-nightMix);
-    if(!tracking){moonInView=true;moonPhase.material.depthTest=true;applyMoonVisual(fixedMoonPosition,nightMix*(1-.7*weatherWorld.look.overcast),true);return;}
+    if(!tracking){moonInView=true;applyMoonVisual(fixedMoonPosition,nightMix*(1-.7*weatherWorld.look.overcast),true);return;}
     const state=getMoonSkyState(time,moonTracking.location);
     // Live time and preview time use the same panorama projection and horizon.
-    moonPhase.material.depthTest=false;
     const depth=moonScreen.copy(fixedMoonPosition).project(camera).z;
     moonTarget.set(state.azimuth/Math.PI*1.5,getMoonPanoramaHeight(state,time,moonTracking.location),depth).unproject(camera);
-    const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025);
+    // Like the sun, the moon sinks into the haze: it is gone completely before its lower edge reaches the terrain's far edge (screen height 0.22 to 0.32 for its centre).
+    const horizonFade=THREE.MathUtils.smoothstep(state.altitude,-.075,.025)*THREE.MathUtils.smoothstep(moonScreen.copy(moonTarget).project(camera).y,.22,.32);
     applyMoonVisual(moonTarget,(.52+.48*nightMix)*horizonFade*(1-.7*weatherWorld.look.overcast),state.altitude>-.09,state.tilt,2);
     moonScreen.copy(moon.position).project(camera);
     moonInView=moon.visible&&moonScreen.z>-1&&moonScreen.z<1&&Math.abs(moonScreen.x)<1.04&&Math.abs(moonScreen.y)<1.04;
@@ -419,9 +428,10 @@ export async function createWorld(container,options={}){
       if(Math.abs(x)>7.2&&j%5===0)flowers.push([x+.18,.25,z-.12,.18,.25,.18]);
     }
     for(let j=0;j<170;j++){const x=(random()-.5)*110;const z=(random()-.5)*chunkLength;if(Math.abs(x)>7.2)studs.push([x,-.22,z,.85,1,.85]);}
-    // Keep each ground batch with its source positions so a scene (the city) can clear room for its roads.
-    const studMesh=batch(group,cylinder,materials.stud,studs,false);lowDetails.push(studMesh);
-    const ground=[[batch(group,cube,materials.brick,plates,false),plates],[batch(group,cube,materials.path,pathPlates,false),pathPlates],[studMesh,studs],[batch(group,cube,materials.rock,pebbles,false),pebbles]];
+    batch(group,cube,materials.brick,plates,false);
+    batch(group,cube,materials.path,pathPlates,false);
+    lowDetails.push(batch(group,cylinder,materials.stud,studs,false));
+    batch(group,cube,materials.rock,pebbles,false);
     const plants=batch(group,cube,materials.tree,sprouts,false);
     const flowerBed=batch(group,cube,materials.flower,flowers,false);
     const trees=new THREE.Group(),cacti=new THREE.Group(),palms=new THREE.Group();group.add(trees,cacti,palms);
@@ -430,14 +440,14 @@ export async function createWorld(container,options={}){
       addTree(trees,x,z,.65+random()*.4);addCactus(cacti,x+.7,z,.65+random()*.5);
       addPalm(palms,x,z,.7+random()*.38);
     }
-    chunks.push({group,trees,cacti,palms,plants,flowerBed,ground});
+    chunks.push({group,trees,cacti,palms,plants,flowerBed});
   }
   const snowWorld=createSnowWorld(THREE,{scene,belt,chunks,cube,batch,random,trunkMaterial:materials.trunk});
   const forestWorld=createForestWorld(THREE,{scene,chunks,cube,batch,random});
   const cityWorld=createCityWorld(THREE,{belt,chunks,cube,batch,random,groundSpeed:2.65});
   const groundSpeed=2.65;
   const dayLife=createDayLife(THREE,{scene,belt,cube,random,groundSpeed});
-  const weatherWorld=createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial:whiteMat});
+  const weatherWorld=createWeatherWorld(THREE,{scene,cube,random,cloudGeometry,cloudMaterial:whiteMat,cloudParent:skyClouds});
   const rainbow=createRainbow(THREE,{scene}),sunNdc=new THREE.Vector2();
   let weatherState=null,lastWeatherSync=0,cloudPhase=0,sunAltitude=null;
   const weatherApplied={overcast:-1,gray:-1,haze:-1,wet:-1,snowCover:-1,flash:-1};
@@ -679,6 +689,10 @@ export async function createWorld(container,options={}){
             if(!safeTrajectory(e[12],e[14],mesh.geometry.boundingSphere.radius*scale))mesh.setMatrixAt(i,hiddenMatrix);
           }
         }
+        else if(biome==='city'){
+          // The city's roads, sidewalks and medians run through the ground; scattered plates, studs and pebbles there would poke through the asphalt.
+          for(let i=0;i<mesh.count;i++)if(isRoadBand(original[i*16+12]))mesh.setMatrixAt(i,hiddenMatrix);
+        }
         mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
       }
       for(const palm of chunk.palms.children)palm.visible=biome!=='coast'||safeTrajectory(palm.position.x,palm.position.z,1.9*palm.scale.x);
@@ -732,8 +746,8 @@ export async function createWorld(container,options={}){
     if(!['grass','desert'].includes(biome)){scene.background.set(palettes[biome].sky);scene.fog.color.copy(scene.background);}
     else{colorA.set(palettes.grass.sky);colorB.set(palettes.desert.sky);scene.background.copy(colorA).lerp(colorB,mix);scene.fog.color.copy(scene.background);}
     // A tracked moon is also visible by day, and its opacity is owned by updateMoonPosition, so neither is touched here.
-    nightSky.visible=nightMix>.001||moonTracksSky;cloudGroup.visible=nightMix<.999;
-    starMaterial.opacity=nightMix;whiteMat.opacity=1-nightMix;
+    nightSky.visible=nightMix>.001||moonTracksSky;cloudGroup.visible=true;
+    starMaterial.opacity=nightMix;whiteMat.opacity=1;
     sea.visible=biome==='coast';
     coastUniforms.coastEnabled.value=biome==='coast'?1:0;
     coastUniforms.coastNight.value=nightMix;
@@ -763,6 +777,8 @@ export async function createWorld(container,options={}){
       sun.intensity*=1-.7*wk.overcast;hemi.intensity*=1-.12*wk.overcast;hemi.color.lerp(tint('#dfe6ec'),.5*wk.overcast);
       whiteMat.color.lerp(tint('#6f7b88'),.78*wk.overcast);
     }
+    // At night the clouds are dark blue-grey, whatever the weather: they are lit only by the moon.
+    whiteMat.color.lerp(tint('#33435f'),.88*nightMix);
     if(wk.flash>.001){
       scene.background.lerp(tint('#e6eeff'),.7*wk.flash);scene.fog.color.copy(scene.background);
       hemi.intensity+=3.2*wk.flash;sun.intensity+=1.5*wk.flash;whiteMat.color.lerp(tint('#ffffff'),wk.flash);
