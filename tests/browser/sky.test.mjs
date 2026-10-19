@@ -1,6 +1,6 @@
 import {clearWeather,lightness,luminance,sleep} from './harness.mjs';
 
-const DAY='2026-10-18';   // 日出約 05:53、日落約 17:26（花蓮）
+const DAY='2026-10-18';   // 日出約 05:53、日落約 17:26（測試地點）
 const at=time=>`${DAY}T${time}:00+08:00`;
 const SKY=[40,150,160,230];
 

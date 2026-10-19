@@ -30,7 +30,7 @@ export async function startServer(){
   return {url:`http://127.0.0.1:${port}/`,stop:()=>child.kill()};
 }
 
-export const defaultLocation={name:'測試辦公室',lat:23.9911,lng:121.6112,timeZone:'Asia/Taipei'};
+export const defaultLocation={name:'測試地點',lat:23.9911,lng:121.6112,timeZone:'Asia/Taipei'};
 
 // A fixed weather answer in the shape Open-Meteo returns, plus a three-day outlook.
 export const sampleWeather={

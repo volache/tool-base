@@ -105,3 +105,7 @@ npm run test:browser
 ## 海岸場景
 
 底部的「海岸」按鈕會切換為沙灘、棕櫚與平靜海面；黑夜模式也會套用到海岸。設定中的自動輪換會依序走訪草原、沙漠、海岸、雪地、森林與城市。
+
+## 授權
+
+以 [MIT 授權](LICENSE) 釋出。內建的第三方程式（Three.js、SunCalc、Lucide）各自的授權檔在 `dist/vendor/`。天氣資料來自 [Open-Meteo](https://open-meteo.com/)，請遵守其使用條款。
